@@ -9,8 +9,6 @@ import {
   setWorkerUrl,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-
-setWorkerUrl("/maplibre-gl-worker.mjs");
 import {
   areaId,
   gridCollection,
@@ -18,6 +16,9 @@ import {
   polygonCollection,
 } from "@/lib/area";
 import type { BusyCell, Fix } from "@/lib/types";
+
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+setWorkerUrl(`${basePath}/maplibre-gl-worker.mjs`);
 
 type Label = {
   area: string;
