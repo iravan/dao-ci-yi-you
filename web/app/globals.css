@@ -201,9 +201,10 @@ textarea:focus-visible {
   min-height: 44px;
   padding: 0 0.35rem;
   color: var(--mute);
+  text-decoration: none;
 }
 
-.preview-field {
+.demo-field {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
@@ -213,16 +214,17 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
-.preview-field select {
+.demo-field select,
+.demo-field a {
   min-height: 36px;
   border: 0;
-  border-top: 1px solid var(--line);
   background: transparent;
   padding: 0.35rem 0;
   letter-spacing: 0;
   text-transform: none;
   font-size: 0.85rem;
   color: var(--ink);
+  text-decoration: none;
 }
 
 .token-notice {
@@ -347,6 +349,12 @@ textarea:focus-visible {
   margin: 1.25rem 0;
 }
 
+.sheet-error {
+  margin: 0.8rem 0 0;
+  color: var(--seal);
+  font-size: 0.85rem;
+}
+
 .sheet-list ol {
   list-style: none;
   margin: 0;
@@ -385,9 +393,14 @@ textarea:focus-visible {
 
 .composer {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   align-items: flex-end;
   border-top: 1px solid var(--line);
+}
+
+.composer .sheet-error {
+  flex-basis: 100%;
 }
 
 .composer textarea {

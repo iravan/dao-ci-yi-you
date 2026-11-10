@@ -1,11 +1,11 @@
 import { areaId, cellIndex } from "@/lib/area";
 import type { Comment } from "@/lib/types";
 
-/**
- * Design stand-in for GET /areas and GET /areas/{area}/comments.
- * Comments stay in the cells they were written in. Delete this with the preview control.
- */
-export function samplePlace(latitude: number, longitude: number): Record<string, Comment[]> {
+/** Local comments for demo mode. They stay in the cells they were written in. */
+export function samplePlace(
+  latitude: number,
+  longitude: number,
+): Record<string, Comment[]> {
   const lat = cellIndex(latitude);
   const lng = cellIndex(longitude);
   const here = areaId(latitude, longitude);

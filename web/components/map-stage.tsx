@@ -15,7 +15,7 @@ import {
   labelPoint,
   polygonCollection,
 } from "@/lib/area";
-import type { BusyCell, Fix } from "@/lib/types";
+import type { BusyCell } from "@/lib/types";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 setWorkerUrl(`${basePath}/maplibre-gl-worker.mjs`);
@@ -33,7 +33,12 @@ type MapStageProps = {
   writableArea: string | null;
   focus: string | null;
   onSelect: (area: string) => void;
-  onView: (fix: Fix) => void;
+  onSettle: (bounds: {
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+  }) => void;
   onGrid: (visible: boolean) => void;
 };
 
@@ -48,7 +53,7 @@ export default function MapStage({
   writableArea,
   focus,
   onSelect,
-  onView,
+  onSettle,
   onGrid,
 }: MapStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,15 +62,15 @@ export default function MapStage({
   const [labels, setLabels] = useState<Label[]>([]);
   const busyRef = useRef(busy);
   const onSelectRef = useRef(onSelect);
-  const onViewRef = useRef(onView);
+  const onSettleRef = useRef(onSettle);
   const onGridRef = useRef(onGrid);
 
   useEffect(() => {
     busyRef.current = busy;
     onSelectRef.current = onSelect;
-    onViewRef.current = onView;
+    onSettleRef.current = onSettle;
     onGridRef.current = onGrid;
-  }, [busy, onSelect, onView, onGrid]);
+  }, [busy, onSelect, onSettle, onGrid]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -159,30 +164,32 @@ export default function MapStage({
     if (!map) return;
 
     let frame = 0;
-    const draw = () => {
+    const draw = (settle: boolean) => {
       const bounds = map.getBounds();
-      const center = map.getCenter();
-      onViewRef.current({ latitude: center.lat, longitude: center.lng });
-      const grid = gridCollection({
+      const box = {
         south: bounds.getSouth(),
         west: bounds.getWest(),
         north: bounds.getNorth(),
         east: bounds.getEast(),
-      });
+      };
+      const grid = gridCollection(box);
       geojsonSource(map, "grid").setData(grid);
       onGridRef.current(grid.features.length > 0);
+      if (settle) onSettleRef.current(box);
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         setLabels(projectLabels(map, busyRef.current));
       });
     };
 
-    map.on("move", draw);
-    map.on("moveend", draw);
-    draw();
+    const onMove = () => draw(false);
+    const onMoveEnd = () => draw(true);
+    map.on("move", onMove);
+    map.on("moveend", onMoveEnd);
+    draw(true);
     return () => {
-      map.off("move", draw);
-      map.off("moveend", draw);
+      map.off("move", onMove);
+      map.off("moveend", onMoveEnd);
       cancelAnimationFrame(frame);
     };
   }, [mapReady]);

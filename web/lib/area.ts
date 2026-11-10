@@ -1,4 +1,4 @@
-import type { BusyCell } from "@/lib/types";
+import type { BusyCell } from "./types";
 
 /** Degrees. Matches the server cell size. The server still decides the area on every request. */
 export const STEP = 0.001;
@@ -17,7 +17,10 @@ const EMPTY: GeoJSON.FeatureCollection = {
 };
 
 export function cellIndex(value: number): number {
-  return Math.floor(value / STEP);
+  const scaled = value / STEP;
+  const nearest = Math.round(scaled);
+  if (Math.abs(scaled - nearest) < 1e-6) return nearest;
+  return Math.floor(scaled);
 }
 
 /** `floor(lat / step):floor(lng / step)`. Preview for drawing. Rust recomputes this. */
