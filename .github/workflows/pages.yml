@@ -19,17 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
         working-directory: web
-      - run: pnpm build
+      - run: bun run build
         working-directory: web
         env:
           NEXT_PUBLIC_BASE_PATH: /dao-ci-yi-you

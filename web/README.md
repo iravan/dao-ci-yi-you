@@ -1,6 +1,6 @@
 # 到此一遊
 
-The map page. From this folder, run `npm run dev` and open http://localhost:3000.
+The map page. From this folder, run `bun run dev` and open http://localhost:3000.
 
 The published page is https://iravan.github.io/dao-ci-yi-you/. Demo mode is off unless the address is `/demo` or has `?demo=1`. The published demo is https://iravan.github.io/dao-ci-yi-you/demo/.
 
