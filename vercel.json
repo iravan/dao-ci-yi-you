@@ -3,7 +3,8 @@
   "services": {
     "server": {
       "root": "server",
-      "runtime": "rust"
+      "runtime": "rust",
+      "entrypoint": "src/main.rs"
     },
     "web": {
       "root": "web",

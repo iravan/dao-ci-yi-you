@@ -1,0 +1,11 @@
+# Build output and dependencies are rebuilt on Vercel.
+server/target
+web/node_modules
+web/.next
+web/out
+
+# Generated before dev and build.
+web/public/maplibre-gl-worker.mjs
+web/tsconfig.tsbuildinfo
+
+.DS_Store
