@@ -18,6 +18,23 @@ pub struct Config {
     pub cors_origins: Vec<HeaderValue>,
 }
 
+/// The hosted integration injects `SUPABASE_URL`, not the JWKS address.
+fn jwks_url_for(supabase_url: &str) -> String {
+    format!(
+        "{}/auth/v1/.well-known/jwks.json",
+        supabase_url.trim_end_matches('/')
+    )
+}
+
+fn jwks_url() -> Option<String> {
+    if let Ok(url) = std::env::var("SUPABASE_JWKS_URL") {
+        return Some(url);
+    }
+    std::env::var("SUPABASE_URL")
+        .ok()
+        .map(|url| jwks_url_for(&url))
+}
+
 impl Config {
     pub fn from_env() -> Result<Self, String> {
         let redis_url =
@@ -46,7 +63,7 @@ impl Config {
         Ok(Self {
             redis_url,
             bind,
-            jwks_url: std::env::var("SUPABASE_JWKS_URL").ok(),
+            jwks_url: jwks_url(),
             hs_secret: std::env::var("JWT_HS_SECRET").ok(),
             cors_origins,
         })
@@ -92,4 +109,21 @@ pub async fn serve(config: Config) -> Result<(), String> {
     axum::serve(listener, app)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::jwks_url_for;
+
+    #[test]
+    fn jwks_url_follows_the_project_url() {
+        assert_eq!(
+            jwks_url_for("https://abc.supabase.co"),
+            "https://abc.supabase.co/auth/v1/.well-known/jwks.json"
+        );
+        assert_eq!(
+            jwks_url_for("https://abc.supabase.co/"),
+            "https://abc.supabase.co/auth/v1/.well-known/jwks.json"
+        );
+    }
 }
