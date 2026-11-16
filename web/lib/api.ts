@@ -2,7 +2,11 @@ import type { BusyCell, Comment } from "@/lib/types";
 
 export const MAX_COMMENT_LENGTH = 280;
 
-export const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
+// The page and the API share one origin: `/api` is rewritten to the Rust service.
+export const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
+  /\/+$/,
+  "",
+);
 
 type ApiComment = {
   id: string;
@@ -12,9 +16,9 @@ type ApiComment = {
 };
 
 export function socketUrl(base: string): string {
-  const url = new URL(base);
+  // A relative base resolves against the page origin.
+  const url = new URL(`${base}/ws`, window.location.origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/ws";
   url.search = "";
   url.hash = "";
   return url.toString();

@@ -2,7 +2,7 @@
 
 The page in this folder. The build spec is [TECHNICAL.md](../TECHNICAL.md). The area id is `floor(latitude / 0.001):floor(longitude / 0.001)`. Rust computes it for every post, token, and comment list. The copy in `lib/area.ts` is only for drawing.
 
-The page calls Rust when `NEXT_PUBLIC_API_URL` is set, and Supabase when `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set. Without those, the map still opens and a tap shows an empty 24-hour list.
+The page calls Rust under `/api` and Supabase when `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set. `NEXT_PUBLIC_API_URL` defaults to `/api`, which is the same origin on Vercel; set it to an absolute address when the API lives elsewhere, or to empty to keep the page read-only. Without those, the map still opens and a tap shows an empty 24-hour list.
 
 ## Map
 

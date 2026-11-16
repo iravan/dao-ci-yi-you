@@ -22,10 +22,16 @@ impl Config {
     pub fn from_env() -> Result<Self, String> {
         let redis_url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-        let bind = std::env::var("BIND")
-            .unwrap_or_else(|_| "127.0.0.1:8787".to_string())
-            .parse()
-            .map_err(|_| "BIND is invalid")?;
+        let bind: SocketAddr = match std::env::var("BIND") {
+            Ok(bind) => bind.parse().map_err(|_| "BIND is invalid")?,
+            // The host sets PORT for a deployed service.
+            Err(_) => match std::env::var("PORT") {
+                Ok(port) => format!("0.0.0.0:{port}")
+                    .parse()
+                    .map_err(|_| "PORT is invalid")?,
+                Err(_) => "127.0.0.1:8787".parse().map_err(|_| "BIND is invalid")?,
+            },
+        };
         let cors_origins = std::env::var("CORS_ORIGINS")
             .unwrap_or_else(|_| "http://localhost:3000,http://127.0.0.1:3000".to_string())
             .split(',')

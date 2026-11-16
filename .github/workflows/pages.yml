@@ -28,6 +28,8 @@ jobs:
         working-directory: web
         env:
           NEXT_PUBLIC_BASE_PATH: /dao-ci-yi-you
+          # No API on Pages, so the page stays in its read-only state.
+          NEXT_PUBLIC_API_URL: ""
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/out

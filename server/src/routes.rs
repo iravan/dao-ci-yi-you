@@ -22,12 +22,16 @@ pub struct AppState {
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/areas", get(list_areas))
-        .route(
-            "/areas/{area}/comments",
-            get(list_comments).post(post_comment),
+        .nest(
+            "/api",
+            Router::new()
+                .route("/areas", get(list_areas))
+                .route(
+                    "/areas/{area}/comments",
+                    get(list_comments).post(post_comment),
+                )
+                .route("/ws", get(socket)),
         )
-        .route("/ws", get(socket))
         .with_state(Arc::new(state))
 }
 

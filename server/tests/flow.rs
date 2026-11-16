@@ -47,7 +47,7 @@ async fn public_reads_need_no_session_and_post_does() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/areas?south=0&west=0&north=1&east=1")
+                .uri("/api/areas?south=0&west=0&north=1&east=1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -58,7 +58,7 @@ async fn public_reads_need_no_session_and_post_does() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/areas/0:0/comments")
+                .uri("/api/areas/0:0/comments")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -69,7 +69,7 @@ async fn public_reads_need_no_session_and_post_does() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/areas/0:0/comments")
+                .uri("/api/areas/0:0/comments")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"text":"hello"}"#))
                 .unwrap(),
@@ -99,7 +99,7 @@ async fn a_token_only_posts_in_its_own_area_and_is_spent() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/areas/1:1/comments")
+                .uri("/api/areas/1:1/comments")
                 .header("authorization", format!("Bearer {token}"))
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"text":"no"}"#))
@@ -120,7 +120,7 @@ async fn a_token_only_posts_in_its_own_area_and_is_spent() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/areas/0:0/comments")
+                .uri("/api/areas/0:0/comments")
                 .header("authorization", format!("Bearer {token}"))
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"text":"  hello  "}"#))
@@ -133,7 +133,7 @@ async fn a_token_only_posts_in_its_own_area_and_is_spent() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/areas/0:0/comments")
+                .uri("/api/areas/0:0/comments")
                 .header("authorization", format!("Bearer {token}"))
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"text":"again"}"#))
@@ -288,7 +288,7 @@ async fn a_disallowed_provider_cannot_post() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/areas/0:0/comments")
+                .uri("/api/areas/0:0/comments")
                 .header("authorization", format!("Bearer {token}"))
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"text":"no"}"#))

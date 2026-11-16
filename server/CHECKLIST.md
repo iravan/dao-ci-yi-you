@@ -86,7 +86,7 @@ Server:
 ## Local run
 
 - [x] Redis on `127.0.0.1:6379`. Tests use database 15 and flush only that database.
-- [x] The service listens on `127.0.0.1:8787`. The page calls `NEXT_PUBLIC_API_URL`. See `.env.example`.
+- [x] The service listens on `127.0.0.1:8787` locally, or on `0.0.0.0:$PORT` when a host sets `PORT`. Every route is under `/api`, so the page calls `NEXT_PUBLIC_API_URL`. See `.env.example`.
 - [ ] Supabase project: Apple, Google, and Facebook enabled. Email, phone, magic link, anonymous, and every other provider disabled.
 
 ## Checks
