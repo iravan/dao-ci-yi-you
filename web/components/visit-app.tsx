@@ -27,8 +27,8 @@ const MapStage = dynamic(() => import("@/components/map-stage"), {
 });
 
 const SSO: { id: Provider; label: string }[] = [
-  { id: "apple", label: "Sign in with Apple" },
   { id: "google", label: "Sign in with Google" },
+  { id: "apple", label: "Sign in with Apple" },
   { id: "facebook", label: "Sign in with Facebook" },
 ];
 
@@ -79,13 +79,15 @@ function SsoBadge({ id }: { id: Provider }) {
 
 function ssoProviders(): { id: Provider; label: string }[] {
   const enabled = new Set(
-    (process.env.NEXT_PUBLIC_SSO_PROVIDERS || "google")
+    (process.env.NEXT_PUBLIC_SSO_PROVIDERS || "google,apple")
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean),
   );
   const providers = SSO.filter((item) => enabled.has(item.id));
-  return providers.length > 0 ? providers : SSO.filter((item) => item.id === "google");
+  return providers.length > 0
+    ? providers
+    : SSO.filter((item) => item.id === "google" || item.id === "apple");
 }
 
 type Bounds = {

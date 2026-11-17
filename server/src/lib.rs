@@ -137,7 +137,7 @@ fn sso_providers() -> Vec<String> {
         .map(str::to_string)
         .collect();
     if providers.is_empty() {
-        vec!["google".to_string()]
+        vec!["google".to_string(), "apple".to_string()]
     } else {
         providers
     }

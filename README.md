@@ -85,7 +85,7 @@ With no API address, as on the GitHub Pages build, the map and the sheet still o
 
 ```mermaid
 flowchart TD
-  Providers["Sign-in providers from SSO_PROVIDERS. Now: Google"] --> OAuth[Supabase OAuth]
+  Providers["Sign-in providers from SSO_PROVIDERS. Now: Google and Apple"] --> OAuth[Supabase OAuth]
   OAuth --> Session[Browser keeps the session]
   Session --> Fly[First GPS fix flies the map there]
   Fly --> Socket[Open WebSocket /api/ws]
