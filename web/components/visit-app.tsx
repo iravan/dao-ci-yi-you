@@ -13,7 +13,7 @@ import {
   postComment,
   socketUrl,
 } from "@/lib/api";
-import { areaId, busyFromCounts, formatBlock } from "@/lib/area";
+import { areaId, busyFromCounts, formatBlock, parseArea, southwest } from "@/lib/area";
 import { demoEnabled } from "@/lib/demo";
 import { samplePlace } from "@/lib/sample-place";
 import { browserSupabase } from "@/lib/supabase";
@@ -287,19 +287,27 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
     if (demo || !apiBase) return;
     const source = new EventSource(eventsUrl(apiBase));
     source.onmessage = (event) => {
-      let comment: { id?: string; text?: string; area?: string; created_at?: string };
+      let comment: {
+        id?: string;
+        text?: string;
+        area?: string;
+        created_at?: string;
+        count?: number;
+      };
       try {
         comment = JSON.parse(String(event.data)) as typeof comment;
       } catch {
         return;
       }
-      if (!comment.id || !comment.text || !comment.area || !comment.created_at) return;
-      const posted = {
-        id: comment.id,
-        text: comment.text,
-        createdAt: comment.created_at,
-      };
-      if (selectedRef.current === comment.area) {
+      if (!comment.area || typeof comment.count !== "number") return;
+      const area = comment.area;
+      const count = comment.count;
+      if (comment.id && comment.text && comment.created_at && selectedRef.current === area) {
+        const posted = {
+          id: comment.id,
+          text: comment.text,
+          createdAt: comment.created_at,
+        };
         setComments((current) =>
           current.some((item) => item.id === posted.id)
             ? current
@@ -309,14 +317,21 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         );
         setListError("");
         setListStatus("ready");
+      } else if (comment.id && !comment.text && selectedRef.current === area) {
+        const id = comment.id;
+        setComments((current) => current.filter((item) => item.id !== id));
       }
-      const bounds = boundsRef.current;
-      if (bounds) {
-        loadAreas(bounds).then(
-          (areas) => setBusy(areas),
-          () => {},
-        );
-      }
+      setBusy((current) => {
+        const without = current.filter((cell) => cell.area !== area);
+        if (count < 2) return without;
+        const placed = parseArea(area);
+        if (!placed) return without;
+        const corner = southwest(placed);
+        return [
+          ...without,
+          { area, count, south: corner.latitude, west: corner.longitude },
+        ];
+      });
     };
     return () => source.close();
   }, [demo]);

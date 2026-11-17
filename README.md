@@ -28,30 +28,33 @@ On Vercel, `/api` is rewritten to the Rust service and every other path goes to 
 
 One Redis database, `REDIS_URL`. Nothing is created ahead of time. The first write creates each key. `{user}` is the Supabase user id (`sub`). `{area}` is `floor(latitude / 0.001):floor(longitude / 0.001)`. `{id}` is a new UUID.
 
-Two keys carry a Redis TTL. Redis deletes them when the time runs out. The other four stay until the server removes them.
+Two keys carry a Redis TTL. Redis deletes them when the time runs out. The others stay until the server removes them.
 
 | Key | Type | Value | Redis TTL | Removed by the server |
 | --- | --- | --- | --- | --- |
-| `comment:{id}` | string | JSON `{ "text", "area", "created_at" }` | 86400 seconds | The next read `ZREM`s the id after the string is gone, or when the JSON is older than 24 hours. |
+| `comment:{id}` | string | JSON `{ "text", "area", "created_at" }` | 86400 seconds | The index is removed when `expire` says this id is due, or when a list read finds the string missing or older than 24 hours. |
 | `presence:{user}` | string | `{area}` from the latest heartbeat | 45 seconds | A new heartbeat replaces it. |
 | `token:{user}` | string | `{area}` the token is for | none | Deleted when the comment is posted, the visitor moves to another block, or their `active` score is older than 45 seconds. |
 | `active` | sorted set | member = `{user}`, score = heartbeat unix seconds | none | That member is `ZREM`ed when the score is older than 45 seconds. |
-| `area:{area}` | sorted set | member = comment id, score = `created_at` unix seconds | none | `DEL`eted when its last live comment is gone. |
-| `areas` | set | member = `{area}` | none | That block is `SREM`ed in the same step. |
+| `area:{area}` | sorted set | member = comment id, score = `created_at` unix seconds | none | `DEL`eted when `count:{area}` falls to 0. |
+| `expire` | sorted set | member = `{area}\|{id}`, score = expiry unix time | none | `ZREM`ed when that comment is dropped. |
+| `count:{area}` | integer | live comments in the block | none | `DEL`eted when it falls to 0. |
+| `busy` | geo set | member = `{area}`, position = cell center | none | `ZREM`ed when the count falls below 2. |
+| `waiting` | set | `{user}` present and without a token | none | `SREM`ed when a token is granted or the visitor goes stale. |
 
 Anyone can read a block. `GET /api/areas/{area}/comments` does not check sign-in. The token is only for posting.
 
-**Post.** One script, signed in, token required. The text must be non-empty and at most 280 characters. `GET token:{user}` and `GET presence:{user}` must both be this `{area}`. Then `SET comment:{id}` with `EX 86400`, `ZADD area:{area}` (score = unix seconds, member = `{id}`), `DEL token:{user}`, `SADD areas {area}`.
+**Post.** One script, signed in, token required. The text must be non-empty and at most 280 characters. `GET token:{user}` and `GET presence:{user}` must both be this `{area}`. Then `SET comment:{id}` with `EX 86400`, `ZADD area:{area}` (score = unix seconds, member = `{id}`), `DEL token:{user}`, `ZADD expire` at `now + 86400`, and `INCR count:{area}`. When the count reaches 2, `GEOADD busy`. The event is the comment plus `count`.
 
-**List.** `ZRANGE area:{area} 0 -1` returns the ids, oldest first. `GET comment:{id}` returns `{ "text", "area", "created_at" }`. A missing string, or JSON older than 24 hours, is `ZREM`ed from `area:{area}`. A body that is still present but too old is also `DEL`eted. `ZCARD area:{area}` then, when the count is 0, `DEL area:{area}` and `SREM areas {area}`. The response is `{ "comments": [ { "id", "text", "area", "created_at" } ] }`.
+**List.** `ZRANGE area:{area} 0 -1` returns the ids, oldest first. `GET comment:{id}` returns `{ "text", "area", "created_at" }`. A missing string, or JSON older than 24 hours, is removed with the same script as expiry. The response is `{ "comments": [ { "id", "text", "area", "created_at" } ] }`.
 
-**Map counts.** `GET /api/areas` does `SMEMBERS areas`, runs the same live-id read for each block in view, and returns a block only when two or more comments are still live. One comment is not filled on the map. Tapping that block still runs the list above.
+**Map counts.** `GET /api/areas` runs `GEOSEARCH busy` on the viewport, expanded by `0.001°`, then `MGET count:{area}` for the members in that box. A block is in `busy` only while its count is at least 2. One comment is not filled on the map. Tapping that block still runs the list above.
 
-**Sweep.** Every `TOKEN_RELEASE_SECS` (default 1), `SMEMBERS areas` and the same live-id cleanup, so expired comments leave the map without waiting for a tap.
+**Sweep.** Every `TOKEN_RELEASE_SECS` (default 1), `ZRANGEBYSCORE expire -inf now`. Each due member decrements that block's count and leaves `busy` when the count falls below 2. A second with nothing due reads one empty range.
 
-**Heartbeat.** `SET presence:{user} {area} EX 45` and `ZADD active` (score = now, member = `{user}`). `GET token:{user}`. When that value is a different block, `DEL token:{user}`.
+**Heartbeat.** `SET presence:{user} {area} EX 45` and `ZADD active` (score = now, member = `{user}`). `GET token:{user}`. When that value is a different block, `DEL token:{user}`. A visitor with no token is `SADD`ed to `waiting`. A visitor holding a token for this block is `SREM`ed from `waiting`.
 
-**Release.** On the same interval, `ZRANGE active 0 -1 WITHSCORES`. A member whose score is older than 45 seconds is `ZREM`ed, and `DEL token:{user}` runs for them. A member who is still present and `EXISTS token:{user}` is false receives one: `GET presence:{user}`, then `SET token:{user}` to that area.
+**Release.** On the same interval, `ZRANGEBYSCORE active -inf (now - 45)` finds stale visitors. Each is `ZREM`ed, their token is `DEL`eted, and they are `SREM`ed from `waiting`. `SMEMBERS waiting` is everyone still owed a token: `GET presence:{user}`, then `SET token:{user}` and `SREM waiting`.
 
 **Socket open.** `GET token:{user}`. When the key is there, the server sends `{ "type": "token", "area" }` on that socket.
 

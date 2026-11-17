@@ -320,12 +320,20 @@ async fn two_live_comments_are_counted_and_a_fall_back_to_one_is_not() {
     assert_eq!(busy[0].count, 2);
     let comments = store.comments("0:0").await.unwrap();
     assert_eq!(comments.len(), 2);
-    let first = &comments[0].id;
+    let first = comments[0].id.clone();
     let _: i32 = redis::cmd("DEL")
         .arg(format!("comment:{first}"))
         .query_async(&mut con)
         .await
         .unwrap();
+    let _: i32 = redis::cmd("ZADD")
+        .arg("expire")
+        .arg(0)
+        .arg(format!("0:0|{first}"))
+        .query_async(&mut con)
+        .await
+        .unwrap();
+    store.sweep().await.unwrap();
     let busy = store.busy(-0.01, -0.01, 0.01, 0.01).await.unwrap();
     assert!(busy.is_empty());
     assert_eq!(store.comments("0:0").await.unwrap().len(), 1);

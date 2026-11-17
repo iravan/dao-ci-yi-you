@@ -113,10 +113,15 @@ async fn post_comment(
         }
     };
     match state.store.post(&user.id, &area, text).await {
-        Ok(comment) => {
-            if let Ok(body) = serde_json::to_string(&comment) {
-                let _ = state.live.send(body);
-            }
+        Ok((comment, count)) => {
+            let body = json!({
+                "id": comment.id,
+                "text": comment.text,
+                "area": comment.area,
+                "created_at": comment.created_at,
+                "count": count,
+            });
+            let _ = state.live.send(body.to_string());
             (StatusCode::CREATED, Json(comment)).into_response()
         }
         Err(PostError::NoToken) => error(StatusCode::FORBIDDEN, "a token is required"),

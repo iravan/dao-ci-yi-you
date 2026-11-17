@@ -174,14 +174,17 @@ pub async fn serve(config: Config) -> Result<(), String> {
         tick.tick().await;
         loop {
             tick.tick().await;
-            if let Err(()) = clock_state.store.sweep().await {
-                eprintln!("comment sweep failed");
+            match clock_state.store.sweep().await {
+                Ok(expired) => {
+                    for note in expired {
+                        if let Ok(body) = serde_json::to_string(&note) {
+                            let _ = clock_state.live.send(body);
+                        }
+                    }
+                }
+                Err(()) => eprintln!("comment sweep failed"),
             }
-            if let Err(()) = clock_state
-                .store
-                .release(&clock_state.hub, || true)
-                .await
-            {
+            if let Err(()) = clock_state.store.release(&clock_state.hub, || true).await {
                 eprintln!("token release failed");
             }
         }
