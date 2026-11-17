@@ -26,11 +26,67 @@ const MapStage = dynamic(() => import("@/components/map-stage"), {
   loading: () => <div className="map-loading">Loading the map</div>,
 });
 
-const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: "apple", label: "Apple" },
-  { id: "google", label: "Google" },
-  { id: "facebook", label: "Facebook" },
+const SSO: { id: Provider; label: string }[] = [
+  { id: "apple", label: "Sign in with Apple" },
+  { id: "google", label: "Sign in with Google" },
+  { id: "facebook", label: "Sign in with Facebook" },
 ];
+
+const PROVIDERS = ssoProviders();
+
+function SsoBadge({ id }: { id: Provider }) {
+  if (id === "google") {
+    return (
+      <svg viewBox="0 0 48 48" aria-hidden>
+        <path
+          fill="#FFC107"
+          d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"
+        />
+        <path
+          fill="#FF3D00"
+          d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+        />
+        <path
+          fill="#4CAF50"
+          d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"
+        />
+        <path
+          fill="#1976D2"
+          d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C39.2 36.6 44 32 44 24c0-1.3-.1-2.7-.4-3.5z"
+        />
+      </svg>
+    );
+  }
+  if (id === "apple") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path
+          fill="currentColor"
+          d="M16.4 12.7c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.9-3.5.9s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.3 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.8-2.2c.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.4-.9-2.5-3.9zM14.7 6.6c.6-.8 1.1-1.9.9-3-1 .1-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1.1.1 2.2-.5 2.9-1.3z"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M14.5 8.5V6.3c0-.7.5-1 1.1-1h1.9V2.5L15.2 2.4c-2.6 0-4.3 1.6-4.3 4.4v1.7H8.5V12h2.4v9.5h3.6V12h2.5l.4-3.5h-2.9z"
+      />
+    </svg>
+  );
+}
+
+function ssoProviders(): { id: Provider; label: string }[] {
+  const enabled = new Set(
+    (process.env.NEXT_PUBLIC_SSO_PROVIDERS || "google")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+  const providers = SSO.filter((item) => enabled.has(item.id));
+  return providers.length > 0 ? providers : SSO.filter((item) => item.id === "google");
+}
 
 type Bounds = {
   south: number;
@@ -53,6 +109,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   const demo = demoEnabled(forcedDemo, search.toString());
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState("");
+  const [signingIn, setSigningIn] = useState<Provider | null>(null);
   const [writable, setWritable] = useState<string | null>(null);
   const [tokenArea, setTokenArea] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -308,8 +365,10 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
 
   async function signIn(provider: Provider) {
     setAuthError("");
+    setSigningIn(provider);
     const supabase = browserSupabase();
     if (!supabase) {
+      setSigningIn(null);
       setAuthError("Sign-in isn't configured.");
       return;
     }
@@ -318,7 +377,10 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       provider,
       options: { redirectTo },
     });
-    if (error) setAuthError(error.message);
+    if (error) {
+      setSigningIn(null);
+      setAuthError(error.message);
+    }
   }
 
   async function signOut() {
@@ -410,7 +472,6 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         <div className="account">
           {demo ? (
             <label className="demo-field">
-              <span>Demo</span>
               <select
                 aria-label="Demo state"
                 value={demoState}
@@ -441,18 +502,21 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
                 <button
                   key={item.id}
                   type="button"
+                  className={`sso sso-${item.id}`}
+                  disabled={signingIn !== null}
+                  aria-busy={signingIn === item.id}
                   onClick={() => void signIn(item.id)}
                 >
-                  {item.label}
+                  {signingIn === item.id ? (
+                    <span className="sso-spinner" />
+                  ) : (
+                    <SsoBadge id={item.id} />
+                  )}
+                  {signingIn === item.id ? "Signing in" : item.label}
                 </button>
               ))}
             </div>
           )}
-          {!demo && !session ? (
-            <Link className="text-button" href="/demo">
-              Demo
-            </Link>
-          ) : null}
           {authError ? <p className="sheet-error">{authError}</p> : null}
         </div>
       </div>

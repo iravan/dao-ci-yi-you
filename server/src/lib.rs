@@ -128,6 +128,21 @@ impl Config {
     }
 }
 
+fn sso_providers() -> Vec<String> {
+    let providers: Vec<String> = var("SSO_PROVIDERS")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|provider| !provider.is_empty())
+        .map(str::to_string)
+        .collect();
+    if providers.is_empty() {
+        vec!["google".to_string()]
+    } else {
+        providers
+    }
+}
+
 fn token_release_secs() -> Result<u64, String> {
     let Some(value) = var("TOKEN_RELEASE_SECS") else {
         return Ok(1);
@@ -148,7 +163,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
         .map_err(|err| err.to_string())?;
     let state = AppState {
         store: store::Store::new(redis),
-        auth: auth::Auth::new(config.hs_secret, config.jwks_url),
+        auth: auth::Auth::new(config.hs_secret, config.jwks_url, sso_providers()),
         hub: hub::Hub::default(),
         live: tokio::sync::broadcast::channel(64).0,
     };

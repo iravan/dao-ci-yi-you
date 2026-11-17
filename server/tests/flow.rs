@@ -34,7 +34,7 @@ async fn redis_store() -> Store {
 fn state(store: Store) -> AppState {
     AppState {
         store,
-        auth: Auth::new(Some(SECRET.to_string()), None),
+        auth: Auth::new(Some(SECRET.to_string()), None, vec!["google".to_string()]),
         hub: Hub::default(),
         live: tokio::sync::broadcast::channel(16).0,
     }

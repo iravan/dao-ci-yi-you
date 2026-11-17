@@ -2,12 +2,11 @@ use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use serde::Deserialize;
 use std::time::{Duration, Instant};
 
-const PROVIDERS: [&str; 3] = ["apple", "google", "facebook"];
-
 #[derive(Clone)]
 pub struct Auth {
     hs_secret: Option<String>,
     jwks_url: Option<String>,
+    providers: Vec<String>,
     http: reqwest::Client,
     cache: std::sync::Arc<tokio::sync::Mutex<Option<(Instant, Vec<serde_json::Value>)>>>,
 }
@@ -35,10 +34,15 @@ struct AppMetadata {
 }
 
 impl Auth {
-    pub fn new(hs_secret: Option<String>, jwks_url: Option<String>) -> Self {
+    pub fn new(
+        hs_secret: Option<String>,
+        jwks_url: Option<String>,
+        providers: Vec<String>,
+    ) -> Self {
         Self {
             hs_secret: hs_secret.filter(|secret| !secret.is_empty()),
             jwks_url: jwks_url.filter(|url| !url.is_empty()),
+            providers,
             http: reqwest::Client::new(),
             cache: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
         }
@@ -60,7 +64,11 @@ impl Auth {
         validation.set_audience(&["authenticated"]);
         let data =
             decode::<Claims>(token, &key, &validation).map_err(|_| AuthError("invalid token"))?;
-        if !PROVIDERS.contains(&data.claims.app_metadata.provider.as_str()) {
+        if !self
+            .providers
+            .iter()
+            .any(|provider| provider == &data.claims.app_metadata.provider)
+        {
             return Err(AuthError("provider is not allowed"));
         }
         if data.claims.sub.is_empty() {
