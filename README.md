@@ -24,6 +24,37 @@ flowchart LR
 
 On Vercel, `/api` is rewritten to the Rust service and every other path goes to the Next.js app (`vercel.json`). Locally the page calls `NEXT_PUBLIC_API_URL` (for example `http://127.0.0.1:8787/api`) and the server listens on port 8787. See [web/README.md](web/README.md) for how to run each part.
 
+## Redis
+
+One Redis database, `REDIS_URL`. Nothing is created ahead of time. The first write creates each key. `{user}` is the Supabase user id (`sub`). `{area}` is `floor(latitude / 0.001):floor(longitude / 0.001)`. `{id}` is a new UUID.
+
+Two keys carry a Redis TTL. Redis deletes them when the time runs out. The other four stay until the server removes them.
+
+| Key | Type | Value | Redis TTL | Removed by the server |
+| --- | --- | --- | --- | --- |
+| `comment:{id}` | string | JSON `{ "text", "area", "created_at" }` | 86400 seconds | The next read `ZREM`s the id after the string is gone, or when the JSON is older than 24 hours. |
+| `presence:{user}` | string | `{area}` from the latest heartbeat | 45 seconds | A new heartbeat replaces it. |
+| `token:{user}` | string | `{area}` the token is for | none | Deleted when the comment is posted, the visitor moves to another block, or their `active` score is older than 45 seconds. |
+| `active` | sorted set | member = `{user}`, score = heartbeat unix seconds | none | That member is `ZREM`ed when the score is older than 45 seconds. |
+| `area:{area}` | sorted set | member = comment id, score = `created_at` unix seconds | none | `DEL`eted when its last live comment is gone. |
+| `areas` | set | member = `{area}` | none | That block is `SREM`ed in the same step. |
+
+Anyone can read a block. `GET /api/areas/{area}/comments` does not check sign-in. The token is only for posting.
+
+**Post.** One script, signed in, token required. `GET token:{user}` and `GET presence:{user}` must both be this `{area}`. Then `SET comment:{id}` with `EX 86400`, `ZADD area:{area}` (score = unix seconds, member = `{id}`), `DEL token:{user}`, `SADD areas {area}`.
+
+**List.** `ZRANGE area:{area} 0 -1` returns the ids, oldest first. `GET comment:{id}` returns `{ "text", "area", "created_at" }`. A missing string, or JSON older than 24 hours, is `ZREM`ed from `area:{area}`. A body that is still present but too old is also `DEL`eted. `ZCARD area:{area}` then, when the count is 0, `DEL area:{area}` and `SREM areas {area}`. The response is `{ "comments": [ { "id", "text", "area", "created_at" } ] }`.
+
+**Map counts.** `GET /api/areas` does `SMEMBERS areas`, runs the same live-id read for each block in view, and returns a block only when two or more comments are still live. One comment is not filled on the map. Tapping that block still runs the list above.
+
+**Sweep.** Every `TOKEN_RELEASE_SECS` (default 1), `SMEMBERS areas` and the same live-id cleanup, so expired comments leave the map without waiting for a tap.
+
+**Heartbeat.** `SET presence:{user} {area} EX 45` and `ZADD active` (score = now, member = `{user}`). `GET token:{user}`. When that value is a different block, `DEL token:{user}`.
+
+**Release.** On the same interval, `ZRANGE active 0 -1 WITHSCORES`. A member whose score is older than 45 seconds is `ZREM`ed, and `DEL token:{user}` runs for them. A member who is still present and `EXISTS token:{user}` is false receives one: `GET presence:{user}`, then `SET token:{user}` to that area.
+
+**Socket open.** `GET token:{user}`. When the key is there, the server sends `{ "type": "token", "area" }` on that socket.
+
 ## How it works
 
 The map is split into blocks of `0.001°` (about a city block). Anyone can read a block. A signed-in visitor can write on the block they are standing in, and only while they hold a token. A comment lasts 24 hours. A block with two or more live comments is marked busy.
@@ -75,11 +106,11 @@ flowchart TD
 
 ### Token and a comment
 
-Once a minute the server walks everyone still active. Someone who does not already hold a token is offered one about one time in four. The token is tied to the block in their latest presence.
+Every `TOKEN_RELEASE_SECS` (default 1 second) the server walks everyone still active. Someone who does not already hold a token receives one, tied to the block in their latest presence.
 
 ```mermaid
 flowchart TD
-  Wait[Signed in and present on a block] --> Grant{This minute's draw hits?}
+  Wait[Signed in and present on a block] --> Grant{Release interval and no token held?}
   Grant -->|no| Wait
   Grant -->|yes| Notice[Token notice names the block]
   Notice --> Compose[Open it and the composer is there]

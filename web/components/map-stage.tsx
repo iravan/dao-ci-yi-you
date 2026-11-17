@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AttributionControl,
   GeoJSONSource,
+  GeolocateControl,
   Map,
   NavigationControl,
   setWorkerUrl,
@@ -32,6 +33,7 @@ type MapStageProps = {
   selectedArea: string | null;
   writableArea: string | null;
   focus: string | null;
+  onLocate: (latitude: number, longitude: number) => void;
   onSelect: (area: string) => void;
   onSettle: (bounds: {
     south: number;
@@ -52,6 +54,7 @@ export default function MapStage({
   selectedArea,
   writableArea,
   focus,
+  onLocate,
   onSelect,
   onSettle,
   onGrid,
@@ -60,17 +63,20 @@ export default function MapStage({
   const mapRef = useRef<Map | null>(null);
   const [mapReady, setMapReady] = useState<Map | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
+  const locate = useLocationGranted();
   const busyRef = useRef(busy);
   const onSelectRef = useRef(onSelect);
+  const onLocateRef = useRef(onLocate);
   const onSettleRef = useRef(onSettle);
   const onGridRef = useRef(onGrid);
 
   useEffect(() => {
     busyRef.current = busy;
     onSelectRef.current = onSelect;
+    onLocateRef.current = onLocate;
     onSettleRef.current = onSettle;
     onGridRef.current = onGrid;
-  }, [busy, onSelect, onSettle, onGrid]);
+  }, [busy, onSelect, onLocate, onSettle, onGrid]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -107,6 +113,7 @@ export default function MapStage({
     map.getCanvas().style.cursor = "pointer";
 
     map.on("load", () => {
+      if (mapRef.current !== map) return;
       map.resize();
       map.addSource("busy", { type: "geojson", data: EMPTY });
       map.addLayer({
@@ -139,10 +146,16 @@ export default function MapStage({
       });
       map.addSource("writable", { type: "geojson", data: EMPTY });
       map.addLayer({
+        id: "writable-fill",
+        type: "fill",
+        source: "writable",
+        paint: { "fill-color": "#c44736", "fill-opacity": 0.18 },
+      });
+      map.addLayer({
         id: "writable",
         type: "line",
         source: "writable",
-        paint: { "line-color": "#c44736", "line-width": 2.5 },
+        paint: { "line-color": "#c44736", "line-width": 3 },
       });
       setMapReady(map);
     });
@@ -154,8 +167,8 @@ export default function MapStage({
     mapRef.current = map;
     return () => {
       map.remove();
-      mapRef.current = null;
-      setMapReady(null);
+      if (mapRef.current === map) mapRef.current = null;
+      setMapReady((current) => (current === map ? null : current));
     };
   }, []);
 
@@ -219,6 +232,27 @@ export default function MapStage({
 
   useEffect(() => {
     const map = mapReady;
+    if (!map || mapRef.current !== map || !locate) return;
+    const control = new GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 10000,
+      },
+      showAccuracyCircle: false,
+      trackUserLocation: false,
+    });
+    control.on("geolocate", (event) => {
+      onLocateRef.current(event.coords.latitude, event.coords.longitude);
+    });
+    map.addControl(control, "bottom-right");
+    return () => {
+      map.removeControl(control);
+    };
+  }, [mapReady, locate]);
+
+  useEffect(() => {
+    const map = mapReady;
     if (!map || !focus) return;
     const [latitude, longitude] = focus.split(",").map(Number);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
@@ -244,6 +278,33 @@ export default function MapStage({
       </div>
     </div>
   );
+}
+
+function useLocationGranted(): boolean {
+  const [granted, setGranted] = useState(false);
+
+  useEffect(() => {
+    if (!("geolocation" in navigator) || !navigator.permissions?.query) return;
+    let status: PermissionStatus | undefined;
+    let cancelled = false;
+    const apply = () => {
+      if (!cancelled && status) setGranted(status.state === "granted");
+    };
+    void navigator.permissions
+      .query({ name: "geolocation" })
+      .then((next) => {
+        status = next;
+        apply();
+        next.addEventListener("change", apply);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      status?.removeEventListener("change", apply);
+    };
+  }, []);
+
+  return granted;
 }
 
 function geojsonSource(map: Map, id: string): GeoJSONSource {

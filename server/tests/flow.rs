@@ -36,6 +36,7 @@ fn state(store: Store) -> AppState {
         store,
         auth: Auth::new(Some(SECRET.to_string()), None),
         hub: Hub::default(),
+        live: tokio::sync::broadcast::channel(16).0,
     }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { formatBlock } from "@/lib/area";
 import { MAX_COMMENT_LENGTH } from "@/lib/api";
 import { formatAge } from "@/lib/format";
@@ -37,6 +37,13 @@ export function CommentSheet({
     a.createdAt.localeCompare(b.createdAt),
   );
   const trimmed = draft.trim();
+  const listRef = useRef<HTMLDivElement>(null);
+  const latest = ordered.at(-1)?.id;
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTop = list.scrollHeight;
+  }, [latest]);
 
   return (
     <aside className="sheet" role="dialog" aria-label={formatBlock(area)}>
@@ -49,7 +56,7 @@ export function CommentSheet({
           Close
         </button>
       </header>
-      <div className="sheet-list">
+      <div className="sheet-list" ref={listRef}>
         {status === "loading" ? (
           <p className="sheet-empty">Loading comments</p>
         ) : null}

@@ -5,19 +5,23 @@ use crate::store::{PostError, Store};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use futures::{SinkExt, StreamExt};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::convert::Infallible;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 #[derive(Clone)]
 pub struct AppState {
     pub store: Store,
     pub auth: Auth,
     pub hub: Hub,
+    pub live: broadcast::Sender<String>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -30,7 +34,8 @@ pub fn router(state: AppState) -> Router {
                     "/areas/{area}/comments",
                     get(list_comments).post(post_comment),
                 )
-                .route("/ws", get(socket)),
+                .route("/ws", get(socket))
+                .route("/events", get(events)),
         )
         .with_state(Arc::new(state))
 }
@@ -108,11 +113,32 @@ async fn post_comment(
         }
     };
     match state.store.post(&user.id, &area, text).await {
-        Ok(comment) => (StatusCode::CREATED, Json(comment)).into_response(),
+        Ok(comment) => {
+            if let Ok(body) = serde_json::to_string(&comment) {
+                let _ = state.live.send(body);
+            }
+            (StatusCode::CREATED, Json(comment)).into_response()
+        }
         Err(PostError::NoToken) => error(StatusCode::FORBIDDEN, "a token is required"),
         Err(PostError::WrongArea) => error(StatusCode::FORBIDDEN, "that is not your block"),
         Err(PostError::Redis) => error(StatusCode::INTERNAL_SERVER_ERROR, "the store failed"),
     }
+}
+
+async fn events(
+    State(state): State<Arc<AppState>>,
+) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
+    let rx = state.live.subscribe();
+    let stream = futures::stream::unfold(rx, |mut rx| async move {
+        loop {
+            match rx.recv().await {
+                Ok(data) => return Some((Ok(Event::default().data(data)), rx)),
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => return None,
+            }
+        }
+    });
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 async fn socket(State(state): State<Arc<AppState>>, upgrade: WebSocketUpgrade) -> Response {
@@ -147,6 +173,12 @@ async fn session(state: Arc<AppState>, socket: WebSocket) -> Result<(), &'static
         .await
         .map_err(|_| "socket closed")?;
     let (socket_id, mut incoming) = state.hub.connect(&user.id);
+    if let Some(area) = state.store.token(&user.id).await {
+        state.hub.send(
+            &user.id,
+            &serde_json::json!({"type": "token", "area": area}).to_string(),
+        );
+    }
     let mut write_task = tokio::spawn(async move {
         while let Some(message) = incoming.recv().await {
             if write.send(Message::Text(message.into())).await.is_err() {

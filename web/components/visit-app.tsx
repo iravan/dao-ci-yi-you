@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   apiBase,
+  eventsUrl,
   loadAreas,
   loadComments,
   postComment,
@@ -68,8 +69,14 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   } | null>(null);
   const [demoExtra, setDemoExtra] = useState<Record<string, Comment[]>>({});
   const [focus, setFocus] = useState<string | null>(null);
+  const [fix, setFix] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [gridOn, setGridOn] = useState(false);
   const boundsRef = useRef<Bounds | null>(null);
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selected;
   const fixRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const beatRef = useRef<(() => void) | null>(null);
   const flewRef = useRef(false);
@@ -91,19 +98,11 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
     if (demo || !session || !("geolocation" in navigator)) return;
     const id = navigator.geolocation.watchPosition(
       (position) => {
-        const next = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        fixRef.current = next;
-        if (!flewRef.current) {
-          flewRef.current = true;
-          setFocus(`${next.latitude},${next.longitude}`);
-        }
-        beatRef.current?.();
+        rememberFix(position.coords.latitude, position.coords.longitude, true);
       },
       () => {
         fixRef.current = null;
+        setFix(null);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
     );
@@ -226,6 +225,44 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   }, [demo, selected]);
 
   useEffect(() => {
+    if (demo || !apiBase) return;
+    const source = new EventSource(eventsUrl(apiBase));
+    source.onmessage = (event) => {
+      let comment: { id?: string; text?: string; area?: string; created_at?: string };
+      try {
+        comment = JSON.parse(String(event.data)) as typeof comment;
+      } catch {
+        return;
+      }
+      if (!comment.id || !comment.text || !comment.area || !comment.created_at) return;
+      const posted = {
+        id: comment.id,
+        text: comment.text,
+        createdAt: comment.created_at,
+      };
+      if (selectedRef.current === comment.area) {
+        setComments((current) =>
+          current.some((item) => item.id === posted.id)
+            ? current
+            : [...current, posted].sort((a, b) =>
+                a.createdAt.localeCompare(b.createdAt),
+              ),
+        );
+        setListError("");
+        setListStatus("ready");
+      }
+      const bounds = boundsRef.current;
+      if (bounds) {
+        loadAreas(bounds).then(
+          (areas) => setBusy(areas),
+          () => {},
+        );
+      }
+    };
+    return () => source.close();
+  }, [demo]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setSelected(null);
     };
@@ -311,13 +348,22 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         ),
       )
     : busy;
+  const located = fix ? areaId(fix.latitude, fix.longitude) : null;
   const block = demo
     ? demoState === "read"
       ? null
       : (scene?.here ?? null)
-    : session
-      ? writable
-      : null;
+    : (writable ?? located);
+
+  function rememberFix(latitude: number, longitude: number, fly: boolean) {
+    fixRef.current = { latitude, longitude };
+    setFix({ latitude, longitude });
+    if (fly && !flewRef.current) {
+      flewRef.current = true;
+      setFocus(`${latitude},${longitude}`);
+    }
+    beatRef.current?.();
+  }
   const held =
     demo && (demoState === "token" || demoState === "other")
       ? (scene?.here ?? null)
@@ -337,6 +383,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         selectedArea={selected}
         writableArea={block}
         focus={focus}
+        onLocate={(latitude, longitude) => rememberFix(latitude, longitude, false)}
         onSelect={openArea}
         onSettle={(bounds) => {
           boundsRef.current = bounds;

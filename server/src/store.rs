@@ -202,6 +202,16 @@ impl Store {
         Ok((area, cleared))
     }
 
+    pub async fn token(&self, user: &str) -> Option<String> {
+        let mut redis = self.redis.clone();
+        redis::cmd("GET")
+            .arg(format!("token:{user}"))
+            .query_async(&mut redis)
+            .await
+            .ok()
+            .flatten()
+    }
+
     pub async fn sweep(&self) -> Result<(), ()> {
         let mut redis = self.redis.clone();
         let areas: Vec<String> = redis::cmd("SMEMBERS")

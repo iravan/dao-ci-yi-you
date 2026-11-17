@@ -15,6 +15,10 @@ type ApiComment = {
   created_at: string;
 };
 
+export function eventsUrl(base: string): string {
+  return `${base}/events`;
+}
+
 export function socketUrl(base: string): string {
   // A relative base resolves against the page origin.
   const url = new URL(`${base}/ws`, window.location.origin);
