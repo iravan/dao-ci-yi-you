@@ -270,9 +270,13 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   useEffect(() => {
     if (demo || !apiBase) return;
     let cancel = false;
-    void loadStep().then((next) => {
-      if (!cancel && next) setStep(next);
-    });
+    // The step is optional: a failed read leaves the build-time default in place.
+    loadStep().then(
+      (next) => {
+        if (!cancel && next) setStep(next);
+      },
+      () => {},
+    );
     return () => {
       cancel = true;
     };
