@@ -499,18 +499,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
             if (!session || !writable || tokenArea !== writable) {
               throw new Error("A token is required.");
             }
-            const stored = await postComment(
-              writable,
-              text,
-              session.access_token,
-            );
-            setComments((current) =>
-              selected === writable
-                ? [...current, stored].sort((a, b) =>
-                    a.createdAt.localeCompare(b.createdAt),
-                  )
-                : current,
-            );
+            await postComment(writable, text, session.access_token);
             setTokenArea(null);
             if (boundsRef.current) void refreshAreas(boundsRef.current);
           }}

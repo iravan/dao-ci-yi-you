@@ -33,9 +33,11 @@ export function CommentSheet({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [postError, setPostError] = useState("");
-  const ordered = [...comments].sort((a, b) =>
-    a.createdAt.localeCompare(b.createdAt),
-  );
+  const ordered = [...comments]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .filter((comment, index, list) =>
+      list.findIndex((item) => item.id === comment.id) === index,
+    );
   const trimmed = draft.trim();
   const listRef = useRef<HTMLDivElement>(null);
   const latest = ordered.at(-1)?.id;
@@ -112,6 +114,13 @@ export function CommentSheet({
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+                return;
+              }
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }}
             placeholder="Write in this block"
             rows={3}
             maxLength={MAX_COMMENT_LENGTH}

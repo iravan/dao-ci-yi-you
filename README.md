@@ -41,7 +41,7 @@ Two keys carry a Redis TTL. Redis deletes them when the time runs out. The other
 
 Anyone can read a block. `GET /api/areas/{area}/comments` does not check sign-in. The token is only for posting.
 
-**Post.** One script, signed in, token required. `GET token:{user}` and `GET presence:{user}` must both be this `{area}`. Then `SET comment:{id}` with `EX 86400`, `ZADD area:{area}` (score = unix seconds, member = `{id}`), `DEL token:{user}`, `SADD areas {area}`.
+**Post.** One script, signed in, token required. The text must be non-empty and at most 280 characters. `GET token:{user}` and `GET presence:{user}` must both be this `{area}`. Then `SET comment:{id}` with `EX 86400`, `ZADD area:{area}` (score = unix seconds, member = `{id}`), `DEL token:{user}`, `SADD areas {area}`.
 
 **List.** `ZRANGE area:{area} 0 -1` returns the ids, oldest first. `GET comment:{id}` returns `{ "text", "area", "created_at" }`. A missing string, or JSON older than 24 hours, is `ZREM`ed from `area:{area}`. A body that is still present but too old is also `DEL`eted. `ZCARD area:{area}` then, when the count is 0, `DEL area:{area}` and `SREM areas {area}`. The response is `{ "comments": [ { "id", "text", "area", "created_at" } ] }`.
 
@@ -57,7 +57,7 @@ Anyone can read a block. `GET /api/areas/{area}/comments` does not check sign-in
 
 ## How it works
 
-The map is split into blocks of `0.001°` (about a city block). Anyone can read a block. A signed-in visitor can write on the block they are standing in, and only while they hold a token. A comment lasts 24 hours. A block with two or more live comments is marked busy.
+The map is split into blocks of `0.001°` (about a city block). Anyone can read a block. A signed-in visitor can write on the block they are standing in, and only while they hold a token. A comment is at most 280 characters and lasts 24 hours. A block with two or more live comments is marked busy.
 
 ### Browse and read
 
