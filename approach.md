@@ -58,7 +58,7 @@ Keep `comment:{id}`, `presence:{user}`, `token:{user}`, and `active`. Stop using
 
 **Expire.** Each tick runs `ZRANGEBYSCORE expire -inf now`. For each member, `ZREM` the id from `area:{area}`, `DECR count:{area}`, and `ZREM` the member from `expire`. If the count falls below 2, `ZREM busy`. If the count is 0, `DEL count:{area}` and `DEL area:{area}`. The tick's cost is the number of comments that expired in that second. A quiet second is one range read that returns nothing. The same event shape, with the new count, tells open pages to drop the note and update the cell.
 
-**Map.** `GEOSEARCH busy` with the viewport, expanded by `0.001°` so a cell whose center sits just outside the box is still found. Then one pipeline of `GET count:{area}` for the members Redis returned. The handler no longer calls `SMEMBERS areas` or `live_ids`.
+**Map.** `GEOSEARCH busy` with the viewport, expanded by one cell so a cell whose center sits just outside the box is still found. Then one pipeline of `GET count:{area}` for the members Redis returned. The handler no longer calls `SMEMBERS areas` or `live_ids`.
 
 **List.** Still `ZRANGE area:{area}` and `GET` each `comment:{id}`. That path stays O(comments in this block). A crowded block is bounded by its own notes, not by how many other blocks exist.
 

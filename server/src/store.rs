@@ -45,6 +45,7 @@ return count
 #[derive(Clone)]
 pub struct Store {
     redis: ConnectionManager,
+    step: f64,
 }
 
 #[derive(Debug)]
@@ -85,8 +86,12 @@ pub struct ExpiredNote {
 }
 
 impl Store {
-    pub fn new(redis: ConnectionManager) -> Self {
-        Self { redis }
+    pub fn new(redis: ConnectionManager, step: f64) -> Self {
+        Self { redis, step }
+    }
+
+    pub fn step(&self) -> f64 {
+        self.step
     }
 
     pub async fn post(
@@ -104,7 +109,7 @@ impl Store {
         };
         let body = serde_json::to_string(&stored).map_err(|_| PostError::Redis)?;
         let score = Utc::now().timestamp();
-        let (lon, lat) = cell_center(area).ok_or(PostError::Redis)?;
+        let (lon, lat) = cell_center(area, self.step).ok_or(PostError::Redis)?;
         let mut redis = self.redis.clone();
         let code: i64 = redis::cmd("EVAL")
             .arg(POST_SCRIPT)
@@ -195,10 +200,10 @@ impl Store {
         let mut busy = Vec::new();
         for (area, count) in areas.into_iter().zip(counts) {
             let Some(count) = count else { continue };
-            if count < 2 || !area::intersects(&area, south, west, north, east) {
+            if count < 2 || !area::intersects(&area, south, west, north, east, self.step) {
                 continue;
             }
-            let Some((cell_south, cell_west)) = area::southwest(&area) else {
+            let Some((cell_south, cell_west)) = area::southwest(&area, self.step) else {
                 continue;
             };
             busy.push(BusyArea {
@@ -217,7 +222,7 @@ impl Store {
         latitude: f64,
         longitude: f64,
     ) -> Result<(String, bool), ()> {
-        let area = area::area_id(latitude, longitude);
+        let area = area::area_id(latitude, longitude, self.step);
         let now = Utc::now().timestamp();
         let mut redis = self.redis.clone();
         let _: () = redis::pipe()
@@ -419,10 +424,10 @@ impl Store {
         north: f64,
         east: f64,
     ) -> Result<Vec<String>, ()> {
-        let south = south - area::STEP;
-        let north = north + area::STEP;
-        let west = west - area::STEP;
-        let east = east + area::STEP;
+        let south = south - self.step;
+        let north = north + self.step;
+        let west = west - self.step;
+        let east = east + self.step;
         let lat = (south + north) / 2.0;
         let lon = (west + east) / 2.0;
         let height = (north - south).abs() * 111_320.0;
@@ -460,9 +465,9 @@ impl Store {
     }
 }
 
-fn cell_center(area: &str) -> Option<(f64, f64)> {
-    let (lat, lng) = area::southwest(area)?;
-    Some((lng + area::STEP / 2.0, lat + area::STEP / 2.0))
+fn cell_center(area: &str, step: f64) -> Option<(f64, f64)> {
+    let (lat, lng) = area::southwest(area, step)?;
+    Some((lng + step / 2.0, lat + step / 2.0))
 }
 
 fn expired(body: &str) -> bool {

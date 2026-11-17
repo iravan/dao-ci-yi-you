@@ -9,13 +9,13 @@ This repository is that idea, and it has no app code yet.
 An area is a grid cell on latitude and longitude. Two visitors are in the same room when they snap to the same cell. The snap uses a positive remainder so southern and western coordinates fall in stable cells. The ordinary `%` operator keeps the sign of a negative number, which would split one cell into two.
 
 ```text
-step = 0.001
+step = AREA_STEP          # 0.001 by default, 0.0001 to 0.1
 remainder(value, step) = ((value % step) + step) % step
 snapped = value - remainder(value, step)
 area = snappedLatitude + "," + snappedLongitude
 ```
 
-`step` is 0.001 degrees. North to south that is about 111 metres. East to west it is about `111 * cos(latitude)` metres, so the cell is narrower as you leave the equator. Everyone whose snapped pair matches is in that chatroom. The area id is the snapped pair, not a place name.
+`step` is 0.001 degrees by default and comes from `AREA_STEP`, so a deployment can draw fewer, larger cells. North to south that is about 111 metres. East to west it is about `111 * cos(latitude)` metres, so the cell is narrower as you leave the equator. Everyone whose snapped pair matches is in that chatroom. The area id is the snapped pair, not a place name.
 
 A person standing just across a grid line is in the next room, even when they are a few metres away. That is the grouping rule. The room does not grow to include neighbours.
 

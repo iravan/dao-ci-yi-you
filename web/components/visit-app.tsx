@@ -10,10 +10,18 @@ import {
   eventsUrl,
   loadAreas,
   loadComments,
+  loadStep,
   postComment,
   socketUrl,
 } from "@/lib/api";
-import { areaId, busyFromCounts, formatBlock, parseArea, southwest } from "@/lib/area";
+import {
+  areaId,
+  busyFromCounts,
+  DEFAULT_STEP,
+  formatBlock,
+  parseArea,
+  southwest,
+} from "@/lib/area";
 import { demoEnabled } from "@/lib/demo";
 import { samplePlace } from "@/lib/sample-place";
 import { browserSupabase } from "@/lib/supabase";
@@ -133,6 +141,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
     longitude: number;
   } | null>(null);
   const [gridOn, setGridOn] = useState(false);
+  const [step, setStep] = useState(DEFAULT_STEP);
   const boundsRef = useRef<Bounds | null>(null);
   const selectedRef = useRef<string | null>(null);
   selectedRef.current = selected;
@@ -259,6 +268,17 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   }, [demo, session?.access_token]);
 
   useEffect(() => {
+    if (demo || !apiBase) return;
+    let cancel = false;
+    void loadStep().then((next) => {
+      if (!cancel && next) setStep(next);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [demo]);
+
+  useEffect(() => {
     if (demo || !selected) return;
     const area = selected;
     let cancel = false;
@@ -326,7 +346,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         if (count < 2) return without;
         const placed = parseArea(area);
         if (!placed) return without;
-        const corner = southwest(placed);
+        const corner = southwest(placed, step);
         return [
           ...without,
           { area, count, south: corner.latitude, west: corner.longitude },
@@ -334,7 +354,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       });
     };
     return () => source.close();
-  }, [demo]);
+  }, [demo, step]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -425,9 +445,10 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         Object.fromEntries(
           Object.entries(demoComments).map(([area, list]) => [area, list.length]),
         ),
+        step,
       )
     : busy;
-  const located = fix ? areaId(fix.latitude, fix.longitude) : null;
+  const located = fix ? areaId(fix.latitude, fix.longitude, step) : null;
   const block = demo
     ? demoState === "read"
       ? null
@@ -462,6 +483,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         selectedArea={selected}
         writableArea={block}
         focus={focus}
+        step={step}
         onLocate={(latitude, longitude) => rememberFix(latitude, longitude, false)}
         onSelect={openArea}
         onSettle={(bounds) => {
@@ -471,8 +493,8 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
             const latitude = (bounds.south + bounds.north) / 2;
             const longitude = (bounds.west + bounds.east) / 2;
             setScene({
-              here: areaId(latitude, longitude),
-              comments: samplePlace(latitude, longitude),
+              here: areaId(latitude, longitude, step),
+              comments: samplePlace(latitude, longitude, step),
             });
             return;
           }
@@ -542,6 +564,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         <TokenNotice
           key={`token-${held}`}
           area={held}
+          step={step}
           onOpen={() => openArea(held)}
         />
       ) : null}
@@ -554,6 +577,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
         <CommentSheet
           key={`sheet-${selected}`}
           area={selected}
+          step={step}
           comments={sheetComments}
           yours={yours}
           writing={writing}
@@ -588,7 +612,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       ) : null}
 
       <p className="sr-only">
-        {block ? `Your block is ${formatBlock(block)}` : ""}
+        {block ? `Your block is ${formatBlock(block, step)}` : ""}
       </p>
     </div>
   );

@@ -19,14 +19,16 @@ The public `tile.openstreetmap.org` images are the basemap for a light deploymen
 
 ## Area id
 
-The server snaps both coordinates. `step` is `0.001`. The cell index uses floor division, which matches the positive remainder in the product design and stays stable for negative coordinates.
+The server snaps both coordinates. `step` is `AREA_STEP`, `0.001` by default and allowed between `0.0001` and `0.1`. The cell index uses floor division, which matches the positive remainder in the product design and stays stable for negative coordinates.
 
 ```text
-cell(value) = floor(value / 0.001)
+cell(value) = floor(value / step)
 area = cell(latitude) + ":" + cell(longitude)
 ```
 
-The block's southwest corner on the map is `cell * 0.001`. Its width and height are `0.001` degrees. The client may preview the cell for drawing. A post, a token, and a comment list all use the `area` computed by Rust from the coordinates in that request.
+The block's southwest corner on the map is `cell * step`. Its width and height are `step` degrees. A wider step means fewer, larger blocks, so more visitors share one conversation. A post, a token, and a comment list all use the `area` computed by Rust from the coordinates in that request.
+
+The client may preview the cell for drawing, and it must use the same step. `GET /config` returns `{ "step" }` once at startup; the page falls back to `NEXT_PUBLIC_AREA_STEP`, then `0.001`, until that answer arrives and on the static build with no API. Taps, the grid, the GPS block outline, and the block label all use the fetched value.
 
 ## Page
 

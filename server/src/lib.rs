@@ -20,6 +20,7 @@ pub struct Config {
     pub hs_secret: Option<String>,
     pub cors_origins: Vec<HeaderValue>,
     pub token_release_secs: u64,
+    pub area_step: f64,
 }
 
 /// The hosted integration injects `SUPABASE_URL`, not the JWKS address.
@@ -124,6 +125,7 @@ impl Config {
             hs_secret: var("JWT_HS_SECRET"),
             cors_origins,
             token_release_secs: token_release_secs()?,
+            area_step: area_step()?,
         })
     }
 }
@@ -153,6 +155,18 @@ fn token_release_secs() -> Result<u64, String> {
     }
 }
 
+/// Degrees on a side of a block. A wider step means fewer, larger blocks, so
+/// more visitors share one conversation.
+fn area_step() -> Result<f64, String> {
+    let Some(value) = var("AREA_STEP") else {
+        return Ok(area::DEFAULT_STEP);
+    };
+    match value.trim().parse::<f64>() {
+        Ok(step) if (area::MIN_STEP..=area::MAX_STEP).contains(&step) => Ok(step),
+        _ => Err("AREA_STEP is invalid".to_string()),
+    }
+}
+
 pub async fn serve(config: Config) -> Result<(), String> {
     match &config.jwks_url {
         Some(url) => println!("checking tokens with {url}"),
@@ -161,8 +175,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let redis = store::connect(&config.redis_url)
         .await
         .map_err(|err| err.to_string())?;
+    println!("blocks are {}° on a side", config.area_step);
     let state = AppState {
-        store: store::Store::new(redis),
+        store: store::Store::new(redis, config.area_step),
         auth: auth::Auth::new(config.hs_secret, config.jwks_url, sso_providers()),
         hub: hub::Hub::default(),
         live: tokio::sync::broadcast::channel(64).0,

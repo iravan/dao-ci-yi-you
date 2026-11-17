@@ -28,6 +28,16 @@ export function socketUrl(base: string): string {
   return url.toString();
 }
 
+export async function loadStep(): Promise<number | null> {
+  const response = await fetch(`${apiBase}/config`);
+  if (!response.ok) return null;
+  const body = (await response.json()) as { step?: number };
+  const step = body.step;
+  return typeof step === "number" && Number.isFinite(step) && step > 0
+    ? step
+    : null;
+}
+
 export async function loadAreas(bounds: {
   south: number;
   west: number;

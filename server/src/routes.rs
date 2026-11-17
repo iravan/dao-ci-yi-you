@@ -29,6 +29,7 @@ pub fn router(state: AppState) -> Router {
         .nest(
             "/api",
             Router::new()
+                .route("/config", get(config))
                 .route("/areas", get(list_areas))
                 .route(
                     "/areas/{area}/comments",
@@ -51,6 +52,10 @@ struct Bounds {
 #[derive(Deserialize)]
 struct PostBody {
     text: String,
+}
+
+async fn config(State(state): State<Arc<AppState>>) -> Response {
+    Json(json!({ "step": state.store.step() })).into_response()
 }
 
 async fn list_areas(State(state): State<Arc<AppState>>, Query(bounds): Query<Bounds>) -> Response {

@@ -5,10 +5,11 @@ import type { Comment } from "@/lib/types";
 export function samplePlace(
   latitude: number,
   longitude: number,
+  step: number,
 ): Record<string, Comment[]> {
-  const lat = cellIndex(latitude);
-  const lng = cellIndex(longitude);
-  const here = areaId(latitude, longitude);
+  const lat = cellIndex(latitude, step);
+  const lng = cellIndex(longitude, step);
+  const here = areaId(latitude, longitude, step);
   const north = `${lat + 1}:${lng}`;
   const east = `${lat}:${lng + 1}`;
   let n = 0;

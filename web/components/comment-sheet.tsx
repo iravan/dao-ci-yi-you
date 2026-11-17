@@ -11,6 +11,7 @@ type Status = "loading" | "ready" | "error";
 
 type CommentSheetProps = {
   area: string;
+  step: number;
   comments: Comment[];
   yours: boolean;
   writing: Writing;
@@ -22,6 +23,7 @@ type CommentSheetProps = {
 
 export function CommentSheet({
   area,
+  step,
   comments,
   yours,
   writing,
@@ -48,10 +50,10 @@ export function CommentSheet({
   }, [latest]);
 
   return (
-    <aside className="sheet" role="dialog" aria-label={formatBlock(area)}>
+    <aside className="sheet" role="dialog" aria-label={formatBlock(area, step)}>
       <header className="sheet-head">
         <div>
-          <p className="sheet-area">{formatBlock(area)}</p>
+          <p className="sheet-area">{formatBlock(area, step)}</p>
           {yours ? <p className="sheet-yours">Your block</p> : null}
         </div>
         <button type="button" className="text-button" onClick={onClose}>

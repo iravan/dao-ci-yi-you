@@ -33,6 +33,7 @@ type MapStageProps = {
   selectedArea: string | null;
   writableArea: string | null;
   focus: string | null;
+  step: number;
   onLocate: (latitude: number, longitude: number) => void;
   onSelect: (area: string) => void;
   onSettle: (bounds: {
@@ -54,6 +55,7 @@ export default function MapStage({
   selectedArea,
   writableArea,
   focus,
+  step,
   onLocate,
   onSelect,
   onSettle,
@@ -65,6 +67,7 @@ export default function MapStage({
   const [labels, setLabels] = useState<Label[]>([]);
   const locate = useLocationGranted();
   const busyRef = useRef(busy);
+  const stepRef = useRef(step);
   const onSelectRef = useRef(onSelect);
   const onLocateRef = useRef(onLocate);
   const onSettleRef = useRef(onSettle);
@@ -72,11 +75,12 @@ export default function MapStage({
 
   useEffect(() => {
     busyRef.current = busy;
+    stepRef.current = step;
     onSelectRef.current = onSelect;
     onLocateRef.current = onLocate;
     onSettleRef.current = onSettle;
     onGridRef.current = onGrid;
-  }, [busy, onSelect, onLocate, onSettle, onGrid]);
+  }, [busy, step, onSelect, onLocate, onSettle, onGrid]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -161,7 +165,9 @@ export default function MapStage({
     });
 
     map.on("click", (event) => {
-      onSelectRef.current(areaId(event.lngLat.lat, event.lngLat.lng));
+      onSelectRef.current(
+        areaId(event.lngLat.lat, event.lngLat.lng, stepRef.current),
+      );
     });
 
     mapRef.current = map;
@@ -185,13 +191,13 @@ export default function MapStage({
         north: bounds.getNorth(),
         east: bounds.getEast(),
       };
-      const grid = gridCollection(box);
+      const grid = gridCollection(box, step);
       geojsonSource(map, "grid").setData(grid);
       onGridRef.current(grid.features.length > 0);
       if (settle) onSettleRef.current(box);
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        setLabels(projectLabels(map, busyRef.current));
+        setLabels(projectLabels(map, busyRef.current, step));
       });
     };
 
@@ -205,30 +211,33 @@ export default function MapStage({
       map.off("moveend", onMoveEnd);
       cancelAnimationFrame(frame);
     };
-  }, [mapReady]);
+  }, [mapReady, step]);
 
   useEffect(() => {
     const map = mapReady;
     if (!map) return;
     geojsonSource(map, "busy").setData(
-      polygonCollection(busy.map((cell) => cell.area)),
+      polygonCollection(
+        busy.map((cell) => cell.area),
+        step,
+      ),
     );
     const frame = requestAnimationFrame(() => {
-      setLabels(projectLabels(map, busy));
+      setLabels(projectLabels(map, busy, step));
     });
     return () => cancelAnimationFrame(frame);
-  }, [mapReady, busy]);
+  }, [mapReady, busy, step]);
 
   useEffect(() => {
     const map = mapReady;
     if (!map) return;
     const selected =
       selectedArea && selectedArea !== writableArea ? [selectedArea] : [];
-    geojsonSource(map, "selected").setData(polygonCollection(selected));
+    geojsonSource(map, "selected").setData(polygonCollection(selected, step));
     geojsonSource(map, "writable").setData(
-      polygonCollection(writableArea ? [writableArea] : []),
+      polygonCollection(writableArea ? [writableArea] : [], step),
     );
-  }, [mapReady, selectedArea, writableArea]);
+  }, [mapReady, selectedArea, writableArea, step]);
 
   useEffect(() => {
     const map = mapReady;
@@ -315,10 +324,10 @@ function geojsonSource(map: Map, id: string): GeoJSONSource {
   return source as GeoJSONSource;
 }
 
-function projectLabels(map: Map, busy: BusyCell[]): Label[] {
+function projectLabels(map: Map, busy: BusyCell[], step: number): Label[] {
   const labels: Label[] = [];
   for (const cell of busy) {
-    const point = labelPoint(cell.area);
+    const point = labelPoint(cell.area, step);
     if (!point) continue;
     const projected = map.project([point.longitude, point.latitude]);
     labels.push({

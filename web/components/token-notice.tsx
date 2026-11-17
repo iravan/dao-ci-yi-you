@@ -4,11 +4,12 @@ import { formatBlock } from "@/lib/area";
 
 type TokenNoticeProps = {
   area: string;
+  step: number;
   onOpen: () => void;
 };
 
-export function TokenNotice({ area, onOpen }: TokenNoticeProps) {
-  const name = formatBlock(area);
+export function TokenNotice({ area, step, onOpen }: TokenNoticeProps) {
+  const name = formatBlock(area, step);
   return (
     <button type="button" className="token-notice" onClick={onOpen}>
       <span className="seal" aria-hidden>

@@ -24,9 +24,17 @@ flowchart LR
 
 On Vercel, `/api` is rewritten to the Rust service and every other path goes to the Next.js app (`vercel.json`). Locally the page calls `NEXT_PUBLIC_API_URL` (for example `http://127.0.0.1:8787/api`) and the server listens on port 8787. See [web/README.md](web/README.md) for how to run each part.
 
+## Grid size
+
+The map is cut into square blocks of `AREA_STEP` degrees, `0.001` by default (about 110 metres). Raise it for fewer, larger blocks: `0.01` is about 1.1 km, so a whole neighborhood shares one conversation. `AREA_STEP` must stay between `0.0001` and `0.1`, and the server refuses to start otherwise.
+
+The server owns the value. `GET /api/config` returns `{ "step": 0.01 }`, and the page draws the grid, snaps taps, and previews the GPS block with that number. Until the API answers, and on the static demo build with no API, the page uses `NEXT_PUBLIC_AREA_STEP`, then `0.001`. Leave `NEXT_PUBLIC_AREA_STEP` unset on a hosted build: the API value is the one that counts, and the build-time copy can only misplace the first paint.
+
+Changing `AREA_STEP` starts a new grid. Comments, presence, and tokens are keyed by the old block ids, so notes written before the change stop appearing. They still expire on schedule. Flush the Redis database if the orphaned keys should go at once.
+
 ## Redis
 
-One Redis database, `REDIS_URL`. Nothing is created ahead of time. The first write creates each key. `{user}` is the Supabase user id (`sub`). `{area}` is `floor(latitude / 0.001):floor(longitude / 0.001)`. `{id}` is a new UUID.
+One Redis database, `REDIS_URL`. Nothing is created ahead of time. The first write creates each key. `{user}` is the Supabase user id (`sub`). `{area}` is `floor(latitude / AREA_STEP):floor(longitude / AREA_STEP)`. `{id}` is a new UUID.
 
 Two keys carry a Redis TTL. Redis deletes them when the time runs out. The others stay until the server removes them.
 
@@ -44,11 +52,13 @@ Two keys carry a Redis TTL. Redis deletes them when the time runs out. The other
 
 Anyone can read a block. `GET /api/areas/{area}/comments` does not check sign-in. The token is only for posting.
 
+**Config.** `GET /api/config` returns `{ "step": 0.001 }`, the block size this server snaps with.
+
 **Post.** One script, signed in, token required. The text must be non-empty and at most 280 characters. `GET token:{user}` and `GET presence:{user}` must both be this `{area}`. Then `SET comment:{id}` with `EX 86400`, `ZADD area:{area}` (score = unix seconds, member = `{id}`), `DEL token:{user}`, `ZADD expire` at `now + 86400`, and `INCR count:{area}`. When the count reaches 2, `GEOADD busy`. The event is the comment plus `count`.
 
 **List.** `ZRANGE area:{area} 0 -1` returns the ids, oldest first. `GET comment:{id}` returns `{ "text", "area", "created_at" }`. A missing string, or JSON older than 24 hours, is removed with the same script as expiry. The response is `{ "comments": [ { "id", "text", "area", "created_at" } ] }`.
 
-**Map counts.** `GET /api/areas` runs `GEOSEARCH busy` on the viewport, expanded by `0.001°`, then `MGET count:{area}` for the members in that box. A block is in `busy` only while its count is at least 2. One comment is not filled on the map. Tapping that block still runs the list above.
+**Map counts.** `GET /api/areas` runs `GEOSEARCH busy` on the viewport, expanded by one cell, then `MGET count:{area}` for the members in that box. A block is in `busy` only while its count is at least 2. One comment is not filled on the map. Tapping that block still runs the list above.
 
 **Sweep.** Every `TOKEN_RELEASE_SECS` (default 1), `ZRANGEBYSCORE expire -inf now`. Each due member decrements that block's count and leaves `busy` when the count falls below 2. A second with nothing due reads one empty range.
 
@@ -60,7 +70,7 @@ Anyone can read a block. `GET /api/areas/{area}/comments` does not check sign-in
 
 ## How it works
 
-The map is split into blocks of `0.001°` (about a city block). Anyone can read a block. A signed-in visitor can write on the block they are standing in, and only while they hold a token. A comment is at most 280 characters and lasts 24 hours. A block with two or more live comments is marked busy.
+The map is split into blocks of `AREA_STEP` degrees (about a city block at the `0.001` default). Anyone can read a block. A signed-in visitor can write on the block they are standing in, and only while they hold a token. A comment is at most 280 characters and lasts 24 hours. A block with two or more live comments is marked busy.
 
 ### Browse and read
 

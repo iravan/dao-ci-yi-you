@@ -7,6 +7,7 @@ use server::store::{connect, Store};
 use tower::ServiceExt;
 
 const SECRET: &str = "test-secret";
+const STEP: f64 = 0.001;
 
 async fn gate() -> tokio::sync::MutexGuard<'static, ()> {
     static GATE: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
@@ -16,10 +17,15 @@ async fn gate() -> tokio::sync::MutexGuard<'static, ()> {
 }
 
 async fn redis_store() -> Store {
+    store_with(STEP).await
+}
+
+async fn store_with(step: f64) -> Store {
     let store = Store::new(
         connect("redis://127.0.0.1:6379/15")
             .await
             .expect("redis db 15"),
+        step,
     );
     let mut con = connect("redis://127.0.0.1:6379/15")
         .await
@@ -337,4 +343,40 @@ async fn two_live_comments_are_counted_and_a_fall_back_to_one_is_not() {
     let busy = store.busy(-0.01, -0.01, 0.01, 0.01).await.unwrap();
     assert!(busy.is_empty());
     assert_eq!(store.comments("0:0").await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn a_wider_step_puts_neighbours_in_one_block() {
+    let _guard = gate().await;
+    let wide = store_with(0.01).await;
+    let (first, _) = wide.heartbeat("ada", 22.3194, 114.1698).await.unwrap();
+    let (second, _) = wide.heartbeat("bo", 22.3151, 114.1651).await.unwrap();
+    assert_eq!(first, "2231:11416");
+    assert_eq!(first, second);
+
+    let narrow = store_with(STEP).await;
+    let (left, _) = narrow.heartbeat("ada", 22.3194, 114.1698).await.unwrap();
+    let (right, _) = narrow.heartbeat("bo", 22.3151, 114.1651).await.unwrap();
+    assert_ne!(left, right);
+}
+
+#[tokio::test]
+async fn config_publishes_the_block_step() {
+    let _guard = gate().await;
+    let app = router(state(redis_store().await));
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/config")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(value["step"].as_f64(), Some(STEP));
 }
