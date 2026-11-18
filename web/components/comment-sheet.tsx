@@ -3,7 +3,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { formatBlock } from "@/lib/area";
 import { MAX_COMMENT_LENGTH } from "@/lib/api";
-import { formatAge } from "@/lib/format";
+import { errorText, formatAge } from "@/lib/i18n";
+import { useI18n } from "@/components/locale-provider";
 import type { Comment } from "@/lib/types";
 
 type Writing = "read" | "wait" | "compose";
@@ -35,6 +36,7 @@ export function CommentSheet({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [postError, setPostError] = useState("");
+  const { t } = useI18n();
   const ordered = [...comments]
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .filter((comment, index, list) =>
@@ -54,19 +56,19 @@ export function CommentSheet({
       <header className="sheet-head">
         <div>
           <p className="sheet-area">{formatBlock(area, step)}</p>
-          {yours ? <p className="sheet-yours">Your block</p> : null}
+          {yours ? <p className="sheet-yours">{t("sheet.yours")}</p> : null}
         </div>
         <button type="button" className="text-button" onClick={onClose}>
-          Close
+          {t("sheet.close")}
         </button>
       </header>
       <div className="sheet-list" ref={listRef}>
         {status === "loading" ? (
-          <p className="sheet-empty">Loading comments</p>
+          <p className="sheet-empty">{t("sheet.loading")}</p>
         ) : null}
         {status === "error" ? <p className="sheet-error">{error}</p> : null}
         {status === "ready" && ordered.length === 0 ? (
-          <p className="sheet-empty">Nothing here in the last 24 hours.</p>
+          <p className="sheet-empty">{t("sheet.empty")}</p>
         ) : null}
         {status === "ready" && ordered.length > 0 ? (
           <ol>
@@ -74,7 +76,7 @@ export function CommentSheet({
               <li key={comment.id}>
                 <p>{comment.text}</p>
                 <time dateTime={comment.createdAt} title={comment.createdAt}>
-                  {formatAge(comment.createdAt)}
+                  {formatAge(comment.createdAt, t)}
                 </time>
               </li>
             ))}
@@ -86,7 +88,7 @@ export function CommentSheet({
           <span className="seal seal-wait" aria-hidden>
             遊
           </span>
-          <p>Waiting for a token.</p>
+          <p>{t("sheet.waiting")}</p>
         </div>
       ) : null}
       {writing === "compose" ? (
@@ -104,11 +106,7 @@ export function CommentSheet({
               },
               (reason: unknown) => {
                 setPending(false);
-                setPostError(
-                  reason instanceof Error
-                    ? reason.message
-                    : "The comment wasn't posted.",
-                );
+                setPostError(errorText(reason, t));
               },
             );
           }}
@@ -123,14 +121,14 @@ export function CommentSheet({
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
             }}
-            placeholder="Write in this block"
+            placeholder={t("sheet.placeholder")}
             rows={3}
             maxLength={MAX_COMMENT_LENGTH}
-            aria-label="Comment"
+            aria-label={t("sheet.comment")}
             autoFocus
           />
           <button type="submit" className="post" disabled={!trimmed || pending}>
-            Post
+            {t("sheet.post")}
           </button>
           {postError ? <p className="sheet-error">{postError}</p> : null}
         </form>

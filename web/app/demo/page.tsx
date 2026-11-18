@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { MapLoading } from "@/components/map-loading";
 import { VisitApp } from "@/components/visit-app";
 
 export const metadata: Metadata = {
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function DemoPage() {
   return (
-    <Suspense fallback={<div className="map-loading">Loading the map</div>}>
+    <Suspense fallback={<MapLoading />}>
       <VisitApp demo />
     </Suspense>
   );

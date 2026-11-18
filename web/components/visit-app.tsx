@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   apiBase,
+  ApiError,
   eventsUrl,
   loadAreas,
   loadComments,
@@ -23,21 +24,25 @@ import {
   southwest,
 } from "@/lib/area";
 import { demoEnabled } from "@/lib/demo";
+import { LOCALES } from "@/lib/i18n";
+import type { Locale, MessageKey } from "@/lib/i18n";
 import { samplePlace } from "@/lib/sample-place";
 import { browserSupabase } from "@/lib/supabase";
 import type { BusyCell, Comment, Provider } from "@/lib/types";
 import { CommentSheet } from "@/components/comment-sheet";
+import { MapLoading } from "@/components/map-loading";
+import { useI18n } from "@/components/locale-provider";
 import { TokenNotice } from "@/components/token-notice";
 
 const MapStage = dynamic(() => import("@/components/map-stage"), {
   ssr: false,
-  loading: () => <div className="map-loading">Loading the map</div>,
+  loading: () => <MapLoading />,
 });
 
-const SSO: { id: Provider; label: string }[] = [
-  { id: "google", label: "Sign in with Google" },
-  { id: "apple", label: "Sign in with Apple" },
-  { id: "facebook", label: "Sign in with Facebook" },
+const SSO: { id: Provider; key: MessageKey }[] = [
+  { id: "google", key: "auth.google" },
+  { id: "apple", key: "auth.apple" },
+  { id: "facebook", key: "auth.facebook" },
 ];
 
 const PROVIDERS = ssoProviders();
@@ -85,7 +90,7 @@ function SsoBadge({ id }: { id: Provider }) {
   );
 }
 
-function ssoProviders(): { id: Provider; label: string }[] {
+function ssoProviders(): { id: Provider; key: MessageKey }[] {
   const enabled = new Set(
     (process.env.NEXT_PUBLIC_SSO_PROVIDERS || "google,apple")
       .split(",")
@@ -107,16 +112,17 @@ type Bounds = {
 
 type DemoState = "read" | "wait" | "token" | "other";
 
-const DEMO_STATES: { id: DemoState; label: string }[] = [
-  { id: "read", label: "Signed out" },
-  { id: "wait", label: "Waiting for a token" },
-  { id: "token", label: "Token arrived" },
-  { id: "other", label: "Reading another block" },
+const DEMO_STATES: { id: DemoState; key: MessageKey }[] = [
+  { id: "read", key: "demo.read" },
+  { id: "wait", key: "demo.wait" },
+  { id: "token", key: "demo.token" },
+  { id: "other", key: "demo.other" },
 ];
 
 export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   const search = useSearchParams();
   const demo = demoEnabled(forcedDemo, search.toString());
+  const { t, locale, setLocale } = useI18n();
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState("");
   const [signingIn, setSigningIn] = useState<Provider | null>(null);
@@ -127,7 +133,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   const [listStatus, setListStatus] = useState<"loading" | "ready" | "error">(
     "ready",
   );
-  const [listError, setListError] = useState("");
+  const [listError, setListError] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState<BusyCell[]>([]);
   const [demoState, setDemoState] = useState<DemoState>("read");
   const [scene, setScene] = useState<{
@@ -298,7 +304,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       () => {
         if (cancel) return;
         setComments([]);
-        setListError("The list didn't load.");
+        setListError("error.list");
         setListStatus("error");
       },
     );
@@ -339,7 +345,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
                 a.createdAt.localeCompare(b.createdAt),
               ),
         );
-        setListError("");
+        setListError(null);
         setListStatus("ready");
       } else if (comment.id && !comment.text && selectedRef.current === area) {
         const id = comment.id;
@@ -375,7 +381,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       return;
     }
     setComments([]);
-    setListError("");
+    setListError(null);
     setListStatus(apiBase ? "loading" : "ready");
   }
 
@@ -410,7 +416,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
     const supabase = browserSupabase();
     if (!supabase) {
       setSigningIn(null);
-      setAuthError("Sign-in isn't configured.");
+      setAuthError(t("auth.notConfigured"));
       return;
     }
     const redirectTo = `${window.location.origin}${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/`;
@@ -498,7 +504,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
             const longitude = (bounds.west + bounds.east) / 2;
             setScene({
               here: areaId(latitude, longitude, step),
-              comments: samplePlace(latitude, longitude, step),
+              comments: samplePlace(latitude, longitude, step, t),
             });
             return;
           }
@@ -510,19 +516,19 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       <div className="chrome">
         <div className="brand">
           <h1>到此一遊</h1>
-          <p>this block, for a day</p>
+          <p>{t("brand.tagline")}</p>
         </div>
         <div className="account">
           {demo ? (
             <label className="demo-field">
               <select
-                aria-label="Demo state"
+                aria-label={t("demo.state")}
                 value={demoState}
                 onChange={(event) => showDemo(event.target.value as DemoState)}
               >
                 {DEMO_STATES.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.label}
+                    {t(item.key)}
                   </option>
                 ))}
               </select>
@@ -530,13 +536,13 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
           ) : null}
           {demo ? (
             <Link className="text-button" href="/">
-              Live
+              {t("demo.live")}
             </Link>
           ) : session ? (
             <div className="signed-in">
-              <p>Signed in</p>
+              <p>{t("auth.signedIn")}</p>
               <button type="button" className="text-button" onClick={() => void signOut()}>
-                Sign out
+                {t("auth.signOut")}
               </button>
             </div>
           ) : (
@@ -555,12 +561,25 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
                   ) : (
                     <SsoBadge id={item.id} />
                   )}
-                  {signingIn === item.id ? "Signing in" : item.label}
+                  {signingIn === item.id ? t("auth.signingIn") : t(item.key)}
                 </button>
               ))}
             </div>
           )}
           {authError ? <p className="sheet-error">{authError}</p> : null}
+          <label className="demo-field locale-field">
+            <select
+              aria-label={t("locale.label")}
+              value={locale}
+              onChange={(event) => setLocale(event.target.value as Locale)}
+            >
+              {LOCALES.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -574,7 +593,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       ) : null}
 
       {!gridOn && !selected ? (
-        <p className="zoom-hint">Zoom in to see the blocks</p>
+        <p className="zoom-hint">{t("map.zoomHint")}</p>
       ) : null}
 
       {selected ? (
@@ -586,12 +605,12 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
           yours={yours}
           writing={writing}
           status={demo ? "ready" : listStatus}
-          error={listError}
+          error={listError ? t(listError) : ""}
           onClose={() => setSelected(null)}
           onSubmit={async (text) => {
             if (demo) {
               if (!scene || held !== scene.here || selected !== scene.here) {
-                throw new Error("A token is required.");
+                throw new ApiError("error.tokenRequired");
               }
               const stored = {
                 id: `demo-${Date.now()}`,
@@ -606,7 +625,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
               return;
             }
             if (!session || !writable || tokenArea !== writable) {
-              throw new Error("A token is required.");
+              throw new ApiError("error.tokenRequired");
             }
             await postComment(writable, text, session.access_token);
             setTokenArea(null);
@@ -616,7 +635,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       ) : null}
 
       <p className="sr-only">
-        {block ? `Your block is ${formatBlock(block, step)}` : ""}
+        {block ? t("block.yours", { block: formatBlock(block, step) }) : ""}
       </p>
     </div>
   );

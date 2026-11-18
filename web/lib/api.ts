@@ -1,6 +1,16 @@
 import type { BusyCell, Comment } from "@/lib/types";
+import { serverErrorKey } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 export const MAX_COMMENT_LENGTH = 280;
+
+/** A failure that already carries its translation key. */
+export class ApiError extends Error {
+  constructor(key: MessageKey) {
+    super(key);
+    this.name = "ApiError";
+  }
+}
 
 // The page and the API share one origin: `/api` is rewritten to the Rust service.
 export const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
@@ -51,7 +61,7 @@ export async function loadAreas(bounds: {
     east: String(bounds.east),
   });
   const response = await fetch(`${apiBase}/areas?${params}`);
-  if (!response.ok) throw new Error("The counts didn't load.");
+  if (!response.ok) throw new ApiError("error.counts");
   const body = (await response.json()) as { areas: BusyCell[] };
   return body.areas;
 }
@@ -60,7 +70,7 @@ export async function loadComments(area: string): Promise<Comment[]> {
   const response = await fetch(
     `${apiBase}/areas/${encodeURIComponent(area)}/comments`,
   );
-  if (!response.ok) throw new Error("The list didn't load.");
+  if (!response.ok) throw new ApiError("error.list");
   const body = (await response.json()) as { comments: ApiComment[] };
   return body.comments.map((comment) => ({
     id: comment.id,
@@ -89,10 +99,10 @@ export async function postComment(
     | (ApiComment & { error?: string })
     | null;
   if (!response.ok) {
-    throw new Error(body?.error ?? "The comment wasn't posted.");
+    throw new ApiError(serverErrorKey(body?.error));
   }
   if (!body?.id || !body.created_at) {
-    throw new Error("The comment wasn't posted.");
+    throw new ApiError("error.post");
   }
   return { id: body.id, text: body.text, createdAt: body.created_at };
 }
