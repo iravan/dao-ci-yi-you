@@ -62,7 +62,7 @@ Anyone can read a block. `GET /api/areas/{area}/comments` does not check sign-in
 
 **Sweep.** Every `TOKEN_RELEASE_SECS` (default 1), `ZRANGEBYSCORE expire -inf now`. Each due member decrements that block's count and leaves `busy` when the count falls below 2. A second with nothing due reads one empty range.
 
-**Heartbeat.** `SET presence:{user} {area} EX 45` and `ZADD active` (score = now, member = `{user}`). `GET token:{user}`. When that value is a different block, `DEL token:{user}`. A visitor with no token is `SADD`ed to `waiting`. A visitor holding a token for this block is `SREM`ed from `waiting`.
+**Heartbeat.** `SET presence:{user} {area} EX 45` and `ZADD active` (score = now, member = `{user}`). `GET token:{user}`. When that value is a different block, `DEL token:{user}`. A visitor with no token is `SADD`ed to `waiting`. A visitor holding a token for this block is `SREM`ed from `waiting`. The socket reply is `{ "type": "here", "area", "token" }`. Restating the token there means a page hears about a grant even when the release push went to a different API process.
 
 **Release.** On the same interval, `ZRANGEBYSCORE active -inf (now - 45)` finds stale visitors. Each is `ZREM`ed, their token is `DEL`eted, and they are `SREM`ed from `waiting`. `SMEMBERS waiting` is everyone still owed a token: `GET presence:{user}`, then `SET token:{user}` and `SREM waiting`.
 

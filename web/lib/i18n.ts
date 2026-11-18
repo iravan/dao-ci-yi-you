@@ -48,6 +48,9 @@ const en = {
   "time.minutes": "{count}m ago",
   "time.hours": "{count}h ago",
 
+  "status.connecting": "Connecting to the token service…",
+  "status.locating": "Turn on location to hold a block.",
+
   "error.counts": "The counts didn't load.",
   "error.list": "The list didn't load.",
   "error.post": "The comment wasn't posted.",
@@ -109,6 +112,9 @@ const zhHant: Record<MessageKey, string> = {
   "time.minutes": "{count} 分鐘前",
   "time.hours": "{count} 小時前",
 
+  "status.connecting": "正在連線到發言服務…",
+  "status.locating": "開啟定位，才能佔有這一格。",
+
   "error.counts": "無法載入各格留言數。",
   "error.list": "無法載入留言。",
   "error.post": "留言未能張貼。",
@@ -167,6 +173,9 @@ const zhHans: Record<MessageKey, string> = {
   "time.justNow": "刚刚",
   "time.minutes": "{count} 分钟前",
   "time.hours": "{count} 小时前",
+
+  "status.connecting": "正在连接发言服务…",
+  "status.locating": "开启定位，才能占有这一格。",
 
   "error.counts": "无法加载各格留言数。",
   "error.list": "无法加载留言。",
@@ -227,6 +236,9 @@ const ja: Record<MessageKey, string> = {
   "time.minutes": "{count} 分前",
   "time.hours": "{count} 時間前",
 
+  "status.connecting": "トークンサービスに接続中…",
+  "status.locating": "位置情報をオンにすると、この区画を持てます。",
+
   "error.counts": "件数を読み込めませんでした。",
   "error.list": "一覧を読み込めませんでした。",
   "error.post": "コメントを投稿できませんでした。",
@@ -286,6 +298,9 @@ const ko: Record<MessageKey, string> = {
   "time.minutes": "{count}분 전",
   "time.hours": "{count}시간 전",
 
+  "status.connecting": "토큰 서비스에 연결 중…",
+  "status.locating": "위치를 켜야 이 구역을 가질 수 있습니다.",
+
   "error.counts": "개수를 불러오지 못했습니다.",
   "error.list": "목록을 불러오지 못했습니다.",
   "error.post": "댓글을 게시하지 못했습니다.",
@@ -344,6 +359,9 @@ const th: Record<MessageKey, string> = {
   "time.justNow": "เมื่อสักครู่",
   "time.minutes": "{count} นาทีที่แล้ว",
   "time.hours": "{count} ชั่วโมงที่แล้ว",
+
+  "status.connecting": "กำลังเชื่อมต่อบริการโทเคน…",
+  "status.locating": "เปิดตำแหน่งเพื่อจองช่องนี้",
 
   "error.counts": "โหลดจำนวนไม่ได้",
   "error.list": "โหลดรายการไม่ได้",

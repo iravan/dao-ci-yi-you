@@ -231,10 +231,14 @@ async fn session(state: Arc<AppState>, socket: WebSocket) -> Result<(), &'static
                     .hub
                     .send(&user_id, r#"{"type":"token_cleared"}"#);
             }
+            // Restate the token on every beat. A grant is pushed once, and that
+            // push only reaches sockets in the process that made it; this reply
+            // lets any process tell the page it already holds one.
+            let held = state_for_read.store.token(&user_id).await;
             state_for_read.hub.send_one(
                 &user_id,
                 read_socket,
-                &json!({"type": "here", "area": area}).to_string(),
+                &json!({"type": "here", "area": area, "token": held}).to_string(),
             );
         }
     });

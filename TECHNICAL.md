@@ -93,7 +93,7 @@ Every 60 seconds the release task removes `active` members whose score is older 
 token:{user}                  string, value = the area from presence:{user}
 ```
 
-The socket then sends `token` only on that user's open sessions. Other users receive nothing and stay in the wait state. On `token`, each open page for that user runs a short animation and shows a notice: a new token is ready for the current GPS block. The notice still appears when another block is open, and it points back to the GPS block, where the comment control opens. A heartbeat whose snapped area differs from the stored token deletes the token and sends `token_cleared`, which closes the control and ends the notice.
+The socket then sends `token` only on that user's open sessions. Other users receive nothing and stay in the wait state. Every heartbeat reply is `{ "type": "here", "area", "token" }`, and the token field repeats whatever `token:{user}` holds, so a page still learns about a grant when the release push reached a different API process. On `token`, each open page for that user runs a short animation and shows a notice: a new token is ready for the current GPS block. The notice still appears when another block is open, and it points back to the GPS block, where the comment control opens. A heartbeat whose snapped area differs from the stored token deletes the token and sends `token_cleared`, which closes the control and ends the notice.
 
 The comment control is shown only when the open block is the GPS block and the socket has a token for it. Posting uses the token. After a successful post the page returns to the wait state until a later release.
 

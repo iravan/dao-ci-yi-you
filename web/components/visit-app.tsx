@@ -148,6 +148,9 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
   } | null>(null);
   const [gridOn, setGridOn] = useState(false);
   const [step, setStep] = useState(DEFAULT_STEP);
+  const [link, setLink] = useState<"off" | "connecting" | "ready">(
+    "connecting",
+  );
   const boundsRef = useRef<Bounds | null>(null);
   const selectedRef = useRef<string | null>(null);
   selectedRef.current = selected;
@@ -190,6 +193,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
     let socket: WebSocket | null = null;
     let timer = 0;
     let retry = 0;
+    let attempts = 0;
 
     const connect = () => {
       if (stop) return;
@@ -225,27 +229,34 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       };
       document.addEventListener("visibilitychange", onVisibility);
       socket.onopen = () => {
+        setLink("connecting");
         socket?.send(
           JSON.stringify({ type: "auth", access_token: accessToken }),
         );
       };
       socket.onmessage = (event) => {
-        let message: { type?: string; area?: string };
+        let message: {
+          type?: string;
+          area?: string;
+          token?: string | null;
+        };
         try {
-          message = JSON.parse(String(event.data)) as {
-            type?: string;
-            area?: string;
-          };
+          message = JSON.parse(String(event.data)) as typeof message;
         } catch {
           return;
         }
         if (message.type === "ready") {
           ready = true;
+          attempts = 0;
+          setLink("ready");
           startBeats();
           return;
         }
         if (message.type === "here" && message.area) {
           setWritable(message.area);
+          // The reply restates the token, so a grant pushed by another API
+          // process still reaches this page on the next heartbeat.
+          if ("token" in message) setTokenArea(message.token ?? null);
           return;
         }
         if (message.type === "token" && message.area) {
@@ -257,7 +268,13 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       socket.onclose = () => {
         window.clearInterval(timer);
         document.removeEventListener("visibilitychange", onVisibility);
-        if (!stop && ready) retry = window.setTimeout(connect, 2000);
+        if (stop) return;
+        // Retry even when the socket never became ready: a cold start or a
+        // rejected handshake used to end the session for good.
+        setLink("connecting");
+        attempts += 1;
+        const delay = Math.min(15_000, 1000 * 2 ** Math.min(attempts, 4));
+        retry = window.setTimeout(connect, delay);
       };
     };
 
@@ -270,6 +287,7 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
       socket?.close();
       setWritable(null);
       setTokenArea(null);
+      setLink("off");
     };
   }, [demo, session?.access_token]);
 
@@ -567,6 +585,12 @@ export function VisitApp({ demo: forcedDemo = false }: { demo?: boolean }) {
             </div>
           )}
           {authError ? <p className="sheet-error">{authError}</p> : null}
+          {!demo && session && link !== "ready" ? (
+            <p className="status-line">{t("status.connecting")}</p>
+          ) : null}
+          {!demo && session && !fix ? (
+            <p className="status-line">{t("status.locating")}</p>
+          ) : null}
           <label className="demo-field locale-field">
             <select
               aria-label={t("locale.label")}
